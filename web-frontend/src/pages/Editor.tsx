@@ -3,31 +3,18 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Stage, Layer } from "react-konva";
 import Konva from "konva";
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Tooltip } from "@heroui/react";
-import { SearchIcon } from "@/components/icons";
-import { ComponentsConfig, componentsConfig } from "@/assets/config/items";
 import { ThemeSwitch } from "@/components/theme-switch";
-
-interface ComponentItem {
-  name: string;
-  icon: string;
-  svg: string;
-  class: string;
-  object: string;
-  args: readonly any[];
-}
-
-interface CanvasItem extends ComponentItem {
-  id: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import { componentsConfig } from "@/assets/config/items";
+import { CanvasItemImage } from "@/components/Canvas/CanvasItemImage";
+import { ComponentLibrarySidebar,CanvasPropertiesSidebar } from "@/components/Canvas/ComponentLibrarySidebar"; 
+import { ComponentItem, CanvasItem } from "@/components/Canvas/types";
 
 export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const [components, setComponents] = useState<ComponentsConfig>(componentsConfig);
+  
+  // State
+  const [components, setComponents] = useState<Record<string, Record<string, ComponentItem>>>({});
   const [droppedItems, setDroppedItems] = useState<CanvasItem[]>([]);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,18 +33,7 @@ export default function Editor() {
     setComponents(componentsConfig);
   }, []);
 
-  const filteredComponents = Object.keys(components).reduce<Record<string, ComponentItem[]>>((result, category) => {
-    const items = components[category as keyof ComponentsConfig] as Record<string, ComponentItem>;
-    const matched = Object.keys(items).filter((key) =>
-      items[key].name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    if (matched.length > 0) {
-      result[category] = matched.map((key) => items[key]);
-    }
-
-    return result;
-  }, {});
+  // --- Handlers ---
 
   const handleDragStart = (e: React.DragEvent, item: ComponentItem) => {
     dragItemRef.current = item;
@@ -235,92 +211,13 @@ export default function Editor() {
 
       {/* Main workspace */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Component library sidebar - dark theme enabled */}
-        <div className="w-64 border-r flex flex-col bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          {/* Header with search */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                Components Library
-                <span className="text-xs font-normal text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
-                  {Object.keys(components).reduce((acc, cat) => acc + Object.keys(components[cat as keyof ComponentsConfig] as Record<string, ComponentItem>).length, 0)} items
-                </span>
-              </h3>
-            </div>
-            
-            {/* Search Bar */}
-            <div className="relative mb-3">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                <SearchIcon className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search components..."
-                className="w-full pl-9 pr-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400"
-                onChange={(e) => setSearchQuery(e.target.value)}
-                value={searchQuery}
-              />
-            </div>
-            
-            {/* Quick filters */}
-            <div className="flex gap-1 overflow-x-auto pb-1">
-              <button className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded whitespace-nowrap">
-                All
-              </button>
-              <button className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded whitespace-nowrap">
-                Frequently Used
-              </button>
-              <button className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded whitespace-nowrap">
-                Recent
-              </button>
-            </div>
-          </div>
-          
-        {/* Component List */}
-<div className="flex-1 overflow-y-auto">
-  {Object.keys(filteredComponents).map((category) => (
-    <div key={category} className="mb-6 first:mt-4">
-      <div className="px-4 mb-2 flex items-center justify-between group">
-        <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">{category}</h4>
-        <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-          {Object.keys(components[category as keyof ComponentsConfig] as Record<string, ComponentItem>).length}
-        </span>
-      </div>
-      <div className="px-2">
-        <div className="grid grid-cols-2 gap-2">
-          {filteredComponents[category].map((item) => {
-            return (
-              <div
-                key={item.name}
-                className="p-2 border rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-700 cursor-move flex flex-col items-center transition-colors duration-150 group/item bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600"
-                draggable
-                onDragStart={(e) => handleDragStart(e, item)}
-                title={`Drag to canvas: ${item.name}`}
-              >
-                <div className="relative">
-                  <div className="w-10 h-10 mb-1 bg-white rounded flex items-center justify-center p-1 border border-gray-100 dark:border-gray-600 group-hover/item:border-blue-200 dark:group-hover/item:border-blue-700">
-                    <img 
-                      src={item.icon} 
-                      alt={item.name}
-                      className="w-8 h-8 object-contain group-hover/item:scale-105 transition-transform duration-150"
-                    />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-white text-[10px] flex items-center justify-center hidden group-hover/item:flex">
-                    +
-                  </div>
-                </div>
-                <span className="text-xs text-center line-clamp-2 text-gray-700 dark:text-gray-300 group-hover/item:text-blue-600 dark:group-hover/item:text-blue-400">
-                  {item.name}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  ))}
-</div>
-        </div>
+        {/* Left Sidebar - Component Library */}
+        <ComponentLibrarySidebar
+          components={components}
+          onDragStart={handleDragStart}
+          onSearch={setSearchQuery}
+          initialSearchQuery={searchQuery}
+        />
         
         {/* Canvas Area - Konva */}
         <div
