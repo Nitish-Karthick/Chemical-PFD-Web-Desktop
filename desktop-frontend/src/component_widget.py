@@ -97,8 +97,42 @@ class ComponentWidget(QWidget):
         self.is_selected = selected
         self.update()
 
+    def get_grip_position(self, idx):
+        """Returns the QPoint of the grip in LOCAL widget coordinates."""
+        grips = self.config.get('grips')
+        if not grips:
+             grips = [
+                {'x': 0, 'y': 50, 'side': 'left'},
+                {'x': 100, 'y': 50, 'side': 'right'}
+            ]
+        
+        if 0 <= idx < len(grips):
+            grip = grips[idx]
+            content_rect = self.get_content_rect()
+            cx = content_rect.x() + (grip['x'] / 100.0) * content_rect.width()
+            cy = content_rect.y() + (grip['y'] / 100.0) * content_rect.height()
+            return QPoint(int(cx), int(cy))
+        return QPoint(0,0)
+
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            # 0. Check if clicking on a Grip (Port)
+            if self.hover_port is not None:
+                # Start Connection
+                if hasattr(self.parent(), "start_connection"):
+                    grips = self.config.get('grips')
+                    # Fallback grips logic
+                    if not grips:
+                        grips = [
+                            {'x': 0, 'y': 50, 'side': 'left'},
+                            {'x': 100, 'y': 50, 'side': 'right'}
+                        ]
+                    side = grips[self.hover_port].get('side', 'right')
+                    self.parent().start_connection(self, self.hover_port, side)
+                    self.parent().setFocus() # Ensure canvas has focus
+                    event.accept()
+                    return
+
             # 1. Handle Selection
             ctrl_held = bool(event.modifiers() & Qt.ControlModifier)
             
@@ -109,6 +143,10 @@ class ComponentWidget(QWidget):
             else:
                 self.is_selected = True
                 self.update()
+            
+            # Ensure canvas gets focus for Deletion
+            if self.parent():
+                self.parent().setFocus()
 
             # 2. Prepare Dragging
             self.drag_start_global = event.globalPos()
@@ -119,6 +157,23 @@ class ComponentWidget(QWidget):
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        # 0. Check if we are drawing a connection (Parent has active_connection)
+        # Since we accepted mousePress, we hold the grab. We must forward events or update parent.
+        if hasattr(self.parent(), "active_connection") and self.parent().active_connection:
+            # Map local pos to parent pos
+            global_pos = self.mapToGlobal(event.pos())
+            parent_pos = self.parent().mapFromGlobal(global_pos)
+            
+            # Use the new helper method on CanvasWidget to handle everything (snapping, path calc, repaint)
+            if hasattr(self.parent(), "update_connection_drag"):
+                self.parent().update_connection_drag(parent_pos)
+            else:
+                # Fallback if method missing (shouldn't happen)
+                self.parent().active_connection.current_pos = parent_pos
+                self.parent().active_connection.calculate_path()
+                self.parent().update()
+            return
+
         # Handle Port Hover Logic
         pos = event.pos()
         
@@ -161,13 +216,33 @@ class ComponentWidget(QWidget):
                 for comp in parent.components:
                     if comp.is_selected:
                         comp.move(comp.pos() + delta)
+                # FIX: Force parent update during drag to redraw connected lines
+                parent.update()
             else:
                 self.move(self.pos() + delta)
+                if parent: parent.update()
                 
             # Update start position for next incremental move
             self.drag_start_global = curr_global
 
     def mouseReleaseEvent(self, event):
+        # Forward release to parent if creating connection
+        if hasattr(self.parent(), "active_connection") and self.parent().active_connection:
+            # Map event to parent coordinate space
+            global_pos = self.mapToGlobal(event.pos())
+            parent_pos = self.parent().mapFromGlobal(global_pos)
+            
+            # Construct a dummy event or call parent logic directly
+            # For simplicity, let's just trigger the parent's logic manually or forward the event
+            # Forwarding is cleaner if we adjust position
+            
+            # Note: We cannot easily 'forward' the event object with modified pos without creating new QMouseEvent
+            # But CanvasWidget.mouseReleaseEvent logic is based on `active_connection` state.
+            # We can just call a helper on parent or try to reconstruct the event.
+            # Easiest: Call parent.handle_connection_release(parent_pos)
+            if hasattr(self.parent(), "handle_connection_release"):
+                self.parent().handle_connection_release(parent_pos)
+            
         self.drag_start_global = None
         super().mouseReleaseEvent(event)
 
