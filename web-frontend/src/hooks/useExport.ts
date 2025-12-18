@@ -2,12 +2,12 @@ import { useState, useCallback } from 'react';
 import Konva from 'konva';
 import { ExportOptions, ExportFormat } from '@/components/Canvas/types';
 import {
-  exportToImage,
-  exportToSVG,
+  exportToImage, 
   exportToPDF,
   downloadBlob,
   downloadSVG,
 } from '@/utils/exports';
+import { CanvasItem } from '@/components/Canvas/types';
 
 export function useExport() {
   const [isExporting, setIsExporting] = useState(false);
@@ -17,13 +17,16 @@ export function useExport() {
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     return `diagram-${timestamp}.${format}`;
   };
-
-  const exportDiagram = useCallback(
-    async (stage: Konva.Stage | null, options: ExportOptions): Promise<void> => {
-      if (!stage) {
+const exportDiagram = useCallback(
+  async (
+    stage: Konva.Stage | null,
+    options: ExportOptions,
+    items: CanvasItem[]
+  ): Promise<void> => {      
+    if (!stage) {
         setExportError('Stage not found');
         return;
-      }
+    }
 
       setIsExporting(true);
       setExportError(null);
@@ -32,21 +35,16 @@ export function useExport() {
         const filename = generateFilename(options.format);
 
         switch (options.format) {
-          case 'svg': {
-            const svgString = await exportToSVG(stage, options);
-            downloadSVG(svgString, filename);
-            break;
-          }
 
           case 'pdf': {
-            const pdfBlob = await exportToPDF(stage, options);
+            const pdfBlob = await exportToPDF(stage, options, items);
             downloadBlob(pdfBlob, filename);
             break;
           }
 
           case 'png':
           case 'jpg': {
-            const imageBlob = await exportToImage(stage, options);
+            const imageBlob = await exportToImage(stage, options, items);
             downloadBlob(imageBlob, filename);
             break;
           }

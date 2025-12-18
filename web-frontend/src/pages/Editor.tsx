@@ -34,7 +34,7 @@ export default function Editor() {
   const [showExportModal, setShowExportModal] = useState(false);
   const { exportDiagram, isExporting, exportError } = useExport();
   const handleExport = async (options: ExportOptions) => {
-    await exportDiagram(stageRef.current, options);
+    await exportDiagram(stageRef.current, options, droppedItems);
     setShowExportModal(false);
 
     // Show success toast
@@ -840,12 +840,12 @@ export default function Editor() {
             />
           )}
         </div>
-              <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        onExport={handleExport}
-        isExporting={isExporting}
-      />
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
+          isExporting={isExporting}
+        />
       </div>
     </div>
   );

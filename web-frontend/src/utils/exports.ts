@@ -1,120 +1,156 @@
 import Konva from 'konva';
 import jsPDF from 'jspdf';
-import { ExportOptions } from '@/components/Canvas/types';
+import { ExportOptions, CanvasItem } from '@/components/Canvas/types';
 
-/**
- * Export Konva stage to PNG/JPEG
- */
+/* -------------------------------------------
+   CONTENT BOUNDS
+-------------------------------------------- */
+function getContentBounds(items: CanvasItem[]) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  items.forEach(item => {
+    minX = Math.min(minX, item.x);
+    minY = Math.min(minY, item.y);
+    maxX = Math.max(maxX, item.x + item.width);
+    maxY = Math.max(maxY, item.y + item.height);
+  });
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+/* -------------------------------------------
+   IMAGE EXPORT (PNG / JPG)
+-------------------------------------------- */
 export async function exportToImage(
   stage: Konva.Stage,
-  options: ExportOptions
+  options: ExportOptions,
+  items: CanvasItem[]
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     try {
-      const scale = options.scale;
-      const originalScale = stage.scaleX();
-      const originalPosition = { x: stage.x(), y: stage.y() };
+      if (!items.length) {
+        throw new Error('Nothing to export');
+      }
 
-      // Temporarily adjust scale for export
-      stage.scale({ x: scale, y: scale });
-      stage.position({ x: 0, y: 0 });
+      const padding = options.padding ?? 40;
+      const bounds = getContentBounds(items);
 
-      // Get data URL
-      const dataUrl = stage.toDataURL({
-        mimeType: options.format === 'jpg' ? 'image/jpeg' : 'image/png',
-        quality: options.quality === 'high' ? 1 : options.quality === 'medium' ? 0.8 : 0.6,
-        pixelRatio: 1,
+      const bgColor =
+        options.backgroundColor === 'transparent'
+          ? '#ffffff'
+          : options.backgroundColor;
+
+      // Save stage state
+      const originalScale = stage.scale();
+      const originalPos = stage.position();
+
+      // Background layer (TEMP)
+      const bgLayer = new Konva.Layer({ listening: false });
+      const bgRect = new Konva.Rect({
+        x: bounds.x - padding,
+        y: bounds.y - padding,
+        width: bounds.width + padding * 2,
+        height: bounds.height + padding * 2,
+        fill: bgColor,
       });
 
-      // Restore original scale and position
-      stage.scale({ x: originalScale, y: originalScale });
-      stage.position(originalPosition);
+      bgLayer.add(bgRect);
+      stage.add(bgLayer);
+      bgLayer.moveToBottom();
+      bgLayer.draw();
 
-      // Convert data URL to blob
+      // Reset transforms
+      stage.scale({ x: 1, y: 1 });
+      stage.position({ x: 0, y: 0 });
+
+      // Export ONLY content area
+      const dataUrl = stage.toDataURL({
+        x: bounds.x - padding,
+        y: bounds.y - padding,
+        width: bounds.width + padding * 2,
+        height: bounds.height + padding * 2,
+        pixelRatio: options.scale,
+        mimeType:
+          options.format === 'jpg'
+            ? 'image/jpeg'
+            : 'image/png',
+        quality:
+          options.format === 'jpg'
+            ? options.quality === 'high'
+              ? 1
+              : options.quality === 'medium'
+              ? 0.8
+              : 0.6
+            : undefined,
+      });
+
+      // Cleanup
+      bgLayer.destroy();
+      stage.scale(originalScale);
+      stage.position(originalPos);
+
       fetch(dataUrl)
         .then(res => res.blob())
         .then(resolve)
         .catch(reject);
-    } catch (error) {
-      reject(error);
+    } catch (err) {
+      reject(err);
     }
   });
 }
 
-/**
- * Export Konva stage to SVG
- */
-export async function exportToSVG(
-  stage: Konva.Stage,
-  options: ExportOptions
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    try {
-      const serializer = new XMLSerializer();
-      const stageNode = stage.content.cloneNode(true);
-      const svgString = serializer.serializeToString(stageNode);
-      
-      // Add SVG wrapper with proper dimensions
-      const width = stage.width() * options.scale;
-      const height = stage.height() * options.scale;
-      
-      const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="${width}px" height="${height}px" viewBox="0 0 ${width} ${height}"
-     xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-  <rect width="100%" height="100%" fill="${options.backgroundColor}"/>
-  ${svgString}
-</svg>`;
-      
-      resolve(svg);
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
+/* -------------------------------------------
+   SVG EXPORT (SAFE)
+-------------------------------------------- */
+ 
 
-/**
- * Export Konva stage to PDF
- */
+/* -------------------------------------------
+   PDF EXPORT
+-------------------------------------------- */
 export async function exportToPDF(
   stage: Konva.Stage,
-  options: ExportOptions
+  options: ExportOptions,
+  items: CanvasItem[]
 ): Promise<Blob> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      // First export as image
-      const imageBlob = await exportToImage(stage, {
-        ...options,
-        format: 'png',
-        scale: options.scale,
+  const imageBlob = await exportToImage(
+    stage,
+    { ...options, format: 'png' },
+    items
+  );
+
+  return new Promise((resolve, reject) => {
+    const imageUrl = URL.createObjectURL(imageBlob);
+    const img = new Image();
+
+    img.onload = () => {
+      const pdf = new jsPDF({
+        orientation: img.width > img.height ? 'l' : 'p',
+        unit: 'px',
+        format: [img.width, img.height],
       });
-      
-      const imageUrl = URL.createObjectURL(imageBlob);
-      const img = new Image();
-      
-      img.onload = () => {
-        const pdf = new jsPDF({
-          orientation: img.width > img.height ? 'l' : 'p',
-          unit: 'px',
-          format: [img.width, img.height],
-        });
-        
-        pdf.addImage(img, 'PNG', 0, 0, img.width, img.height);
-        const pdfBlob = pdf.output('blob');
-        URL.revokeObjectURL(imageUrl);
-        resolve(pdfBlob);
-      };
-      
-      img.onerror = reject;
-      img.src = imageUrl;
-    } catch (error) {
-      reject(error);
-    }
+
+      pdf.addImage(img, 'PNG', 0, 0, img.width, img.height);
+      const pdfBlob = pdf.output('blob');
+      URL.revokeObjectURL(imageUrl);
+      resolve(pdfBlob);
+    };
+
+    img.onerror = reject;
+    img.src = imageUrl;
   });
 }
 
-/**
- * Download blob as file
- */
+/* -------------------------------------------
+   DOWNLOAD HELPERS
+-------------------------------------------- */
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -126,9 +162,6 @@ export function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-/**
- * Download SVG as file
- */
 export function downloadSVG(svgString: string, filename: string) {
   const blob = new Blob([svgString], { type: 'image/svg+xml' });
   downloadBlob(blob, filename);
