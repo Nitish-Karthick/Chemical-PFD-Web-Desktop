@@ -584,38 +584,56 @@ export default function Editor() {
     <div className="flex gap-2 dark:text-gray-200">
       <span className="font-bold text-gray-400">Y</span> {cursorPos.y}
     </div>
+    
+    
     <div className="w-px h-3 bg-gray-300"></div>
     
-    {/* Zoom Display */}
-    <div className="font-semibold text-blue-600">
+{/* Zoom Controls */}
+<div className="flex items-center gap-2">
+  {/* Zoom Out Button */}
+  <button
+    onClick={handleZoomOut}
+    disabled={stageScale <= 0.1}
+    className="w-8 h-8 flex items-center justify-center rounded-full
+      bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700
+      border border-gray-300 dark:border-gray-600
+      shadow-sm hover:shadow
+      disabled:opacity-40 disabled:cursor-not-allowed
+      transition-all duration-200"
+    title="Zoom Out"
+  >
+    <MdZoomOut className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+  </button>
+  
+  {/* Zoom Percentage Display & Reset */}
+  <div className="flex items-center">
+    {/* Percentage Display */}
+    <div className="px-3 py-1.5 text-sm font-medium
+      bg-gray-50 dark:bg-gray-800 
+      rounded-l-md
+      text-gray-700 dark:text-gray-300">
       {Math.round(stageScale * 100)}%
     </div>
     
-    <div className="w-px h-3 bg-gray-300"></div>
+    {/* Reset Button */}
     
-    {/* Zoom Controls */}
-    <div className="flex items-center gap-1">
-      {/* Zoom Out Button */}
-      <button
-        onClick={handleZoomOut}
-        disabled={stageScale <= 0.1} // Minimum 10%
-        className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        title="Zoom Out (Ctrl + -)"
-      >
-        <MdZoomOut className="w-3 h-3" />
-      </button>
-     
-      
-      {/* Zoom In Button */}
-      <button
-        onClick={handleZoomIn}
-        disabled={stageScale >= 3} // Maximum 300%
-        className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        title="Zoom In (Ctrl + +)"
-      >
-        <MdZoomIn className="w-3 h-3" />
-      </button>
-    </div>
+  </div>
+  
+  {/* Zoom In Button */}
+  <button
+    onClick={handleZoomIn}
+    disabled={stageScale >= 3}
+    className="w-8 h-8 flex items-center justify-center rounded-full
+      bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700
+      border border-gray-300 dark:border-gray-600
+      shadow-sm hover:shadow
+      disabled:opacity-40 disabled:cursor-not-allowed
+      transition-all duration-200"
+    title="Zoom In"
+  >
+    <MdZoomIn className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+  </button>
+</div>
   </div>
 </div>
           {/* Connection Guidance Overlay */}
