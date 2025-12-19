@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { SearchIcon } from "@/components/icons";
-import { CanvasPropertiesSidebarProps, ComponentItem, ComponentLibrarySidebarProps } from "./types";
+import { type ComponentLibrarySidebarProps,type CanvasPropertiesSidebarProps,ComponentItem } from "@/store/useEditorStore";
 import { Button } from "@heroui/button";
 
 export const ComponentLibrarySidebar = ({

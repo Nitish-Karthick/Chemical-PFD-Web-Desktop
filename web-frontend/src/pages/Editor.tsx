@@ -4,11 +4,9 @@ import { Stage, Layer, Line } from "react-konva";
 import Konva from "konva";
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Tooltip } from "@heroui/react";
 import { ThemeSwitch } from "@/components/theme-switch";
-import { componentsConfig } from "@/assets/config/items";
 import { CanvasItemImage } from "@/components/Canvas/CanvasItemImage";
 import { ConnectionLine } from "@/components/Canvas/ConnectionLine";
 import { ComponentLibrarySidebar, CanvasPropertiesSidebar } from "@/components/Canvas/ComponentLibrarySidebar";
-import { ComponentItem, CanvasItem, Connection, Grip } from "@/components/Canvas/types";
 import { calculateManualPathsWithBridges } from "@/utils/routing";
 import { useHistory } from "@/hooks/useHistory";
 import { TbLayoutSidebarRightExpand, TbLayoutSidebarRightCollapse, TbLayoutSidebarLeftCollapse, TbLayoutSidebarLeftExpand } from "react-icons/tb";
@@ -18,12 +16,9 @@ import { useExport } from '@/hooks/useExport';
 import { ExportOptions } from '@/components/Canvas/types';
 import { FiDownload } from 'react-icons/fi';
 import { useComponents } from "@/context/ComponentContext";
+import { useEditorStore, type ComponentItem, type CanvasItem, type Connection, type CanvasState } from "@/store/useEditorStore";
 
-interface CanvasState {
-  items: CanvasItem[];
-  connections: Connection[];
-}
-
+ 
 export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -32,18 +27,50 @@ export default function Editor() {
 
 
   // Export diagram states
+  const editorStore = useEditorStore();
+  useEffect(() => {
+    if (projectId) {
+      // Load saved state from localStorage or API (optional)
+      const savedState = localStorage.getItem(`editor-${projectId}`);
+      if (savedState) {
+        try {
+          const parsedState = JSON.parse(savedState);
+          editorStore.hydrateEditor(projectId, parsedState);
+        } catch (e) {
+          console.error("Failed to load saved state:", e);
+          editorStore.initEditor(projectId);
+        }
+      } else {
+        editorStore.initEditor(projectId);
+      }
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (projectId) {
+        // Optionally save state before removing
+        // const state = editorStore.getEditorState(projectId);
+        // localStorage.setItem(`editor-${projectId}`, JSON.stringify(state));
+        // editorStore.removeEditor(projectId);
+      }
+    };
+  }, [projectId]);
+
+  const currentState = projectId ? editorStore.getEditorState(projectId) : null;
+  const droppedItems = currentState?.items || [];
+  const connections = currentState?.connections || [];
+  
   const [showExportModal, setShowExportModal] = useState(false);
   const { exportDiagram, isExporting, exportError } = useExport();
   const handleExport = async (options: ExportOptions) => {
     await exportDiagram(stageRef.current, options, droppedItems);
     setShowExportModal(false);
 
-    // Show success toast
     if (!exportError) {
-      // You can add a toast notification here
       alert('Export successful!');
     }
   };
+
 
   // --- State ---
   const { components } = useComponents();
@@ -101,7 +128,7 @@ export default function Editor() {
       setStagePos({ x: targetX, y: targetY });
     }
   };
-  // History Managed State (Items & Connections)
+  // History management
   const {
     state: canvasState,
     set: setCanvasState,
@@ -109,25 +136,21 @@ export default function Editor() {
     redo,
     canUndo,
     canRedo
-  } = useHistory<CanvasState>({ items: [], connections: [] });
+  } = useHistory<CanvasState>({
+    items: [],
+    connections: [],
+    counts: {},
+    sequenceCounter: 0
+  });
 
-  const droppedItems = canvasState.items;
-  const connections = canvasState.connections;
+  // Sync store with history
+  useEffect(() => {
+    if (currentState && projectId) {
+      setCanvasState(currentState);
+    }
+  }, [currentState, projectId]);
 
-  // Helpers to maintain compatibility with existing code while pushing to history
-  const setDroppedItems = (update: React.SetStateAction<CanvasItem[]>) => {
-    setCanvasState(prev => {
-      const newItems = typeof update === 'function' ? (update as any)(prev.items) : update;
-      return { ...prev, items: newItems };
-    });
-  };
-
-  const setConnections = (update: React.SetStateAction<Connection[]>) => {
-    setCanvasState(prev => {
-      const newConnections = typeof update === 'function' ? (update as any)(prev.connections) : update;
-      return { ...prev, connections: newConnections };
-    });
-  };
+  // Use items and connections from history state
 
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -141,13 +164,11 @@ export default function Editor() {
     sourceGripIndex: number;
     startX: number;
     startY: number;
-    // Manually placed intermediate points while drawing
     waypoints: { x: number; y: number }[];
     currentX: number;
     currentY: number;
   } | null>(null);
   const [hoveredGrip, setHoveredGrip] = useState<{ itemId: number; gripIndex: number } | null>(null);
-
   // Canvas Viewport State
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
@@ -168,18 +189,11 @@ export default function Editor() {
 
 
   // --- Helpers ---
-  const getGripPosition = (item: CanvasItem, gripIndex: number): { x: number; y: number } | null => {
-    if (!item.grips || gripIndex >= item.grips.length) return null;
-    const grip: Grip = item.grips[gripIndex];
-    const x = item.x + (grip.x / 100) * item.width;
-    const y = item.y + ((100 - grip.y) / 100) * item.height;
-    return { x, y };
-  };
 
 
   // Precompute final polylines with small "bridge" bumps where
   // manually drawn lines cross.
-  const connectionPaths = useMemo(
+   const connectionPaths = useMemo(
     () => calculateManualPathsWithBridges(connections, droppedItems),
     [connections, droppedItems]
   );
@@ -187,9 +201,8 @@ export default function Editor() {
   // --- Event Listeners ---
 
   // Handle keyboard events (Delete key)
-  useEffect(() => {
+    useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Undo/Redo
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undo();
@@ -206,23 +219,21 @@ export default function Editor() {
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'd') {
-        if (selectedConnectionId !== null) {
-          // Delete selected connection
-          setConnections(prev => prev.filter(conn => conn.id !== selectedConnectionId));
+        if (selectedConnectionId !== null && projectId) {
+          editorStore.removeConnection(projectId, selectedConnectionId);
           setSelectedConnectionId(null);
-        } else if (selectedItemId !== null) {
-          // Delete selected item
-          handleDeleteItem(selectedItemId);
+        } else if (selectedItemId !== null && projectId) {
+          editorStore.deleteItem(projectId, selectedItemId);
+          setSelectedItemId(null);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedConnectionId, selectedItemId, undo, redo]);
+  }, [selectedConnectionId, selectedItemId, undo, redo, projectId, editorStore]);
 
   // --- Handlers ---
-
   const handleDragStart = (e: React.DragEvent, item: ComponentItem) => {
     dragItemRef.current = item;
 
@@ -230,7 +241,6 @@ export default function Editor() {
     if (item.svg) {
       const img = new Image();
       img.src = item.svg;
-      // White background for drag preview
       const canvas = document.createElement('canvas');
       canvas.width = 80;
       canvas.height = 80;
@@ -250,18 +260,15 @@ export default function Editor() {
     e.preventDefault();
     const stage = stageRef.current;
 
-    // If we dropped a sidebar item
-    if (dragItemRef.current && stage) {
+    if (dragItemRef.current && stage && projectId) {
       stage.setPointersPositions(e.nativeEvent);
       const pointer = stage.getRelativePointerPosition();
 
       if (pointer) {
-        // Capture the current item before async operations
         const droppedItem = dragItemRef.current;
 
-        // Create a temporary image to get aspect ratio
         const img = new Image();
-        img.src = droppedItem.svg || droppedItem.icon;
+        img.src = droppedItem.svg || droppedItem.icon || '';
 
         img.onload = () => {
           const aspectRatio = img.width / img.height;
@@ -269,42 +276,32 @@ export default function Editor() {
           let width = baseSize;
           let height = baseSize;
 
-          // Preserve aspect ratio
           if (aspectRatio > 1) {
-            // Wider than tall
             height = baseSize / aspectRatio;
           } else {
-            // Taller than wide
             width = baseSize * aspectRatio;
           }
 
-          const newItem: CanvasItem = {
-            ...droppedItem,
-            id: Date.now(),
+          const newItem = editorStore.addItem(projectId, droppedItem, {
             x: pointer.x - width / 2,
             y: pointer.y - height / 2,
             width,
             height,
             rotation: 0
-          };
+          });
 
-          setDroppedItems(prev => [...prev, newItem]);
           setSelectedItemId(newItem.id);
         };
 
-        // Fallback if image doesn't load
         img.onerror = () => {
-          const newItem: CanvasItem = {
-            ...droppedItem,
-            id: Date.now(),
+          const newItem = editorStore.addItem(projectId, droppedItem, {
             x: pointer.x - 40,
             y: pointer.y - 40,
             width: 80,
             height: 80,
             rotation: 0
-          };
+          });
 
-          setDroppedItems(prev => [...prev, newItem]);
           setSelectedItemId(newItem.id);
         };
       }
@@ -347,23 +344,23 @@ export default function Editor() {
   };
 
   const handleDeleteItem = (itemId: number) => {
-    // Atomic update for history
-    setCanvasState(prev => ({
-      items: prev.items.filter(item => item.id !== itemId),
-      connections: prev.connections.filter(c => c.sourceItemId !== itemId && c.targetItemId !== itemId)
-    }));
-
-    if (selectedItemId === itemId) {
-      setSelectedItemId(null);
+    if (projectId) {
+      editorStore.deleteItem(projectId, itemId);
+      if (selectedItemId === itemId) {
+        setSelectedItemId(null);
+      }
     }
   };
 
   const handleUpdateItem = (itemId: number, updates: Partial<CanvasItem>) => {
-    setDroppedItems(prev =>
-      prev.map(item =>
-        item.id === itemId ? { ...item, ...updates } : item
-      )
-    );
+    if (projectId) {
+      // Transform Canvas types to store types if needed
+      const storeUpdates: Partial<CanvasItem> = {};
+      Object.entries(updates).forEach(([key, value]) => {
+        (storeUpdates as any)[key] = value;
+      });
+      editorStore.updateItem(projectId, itemId, storeUpdates);
+    }
   };
 
   const handleSelectItem = (itemId: number) => {
@@ -376,29 +373,28 @@ export default function Editor() {
 
   // --- Connection Handlers ---
 
-  const handleGripMouseDown = (itemId: number, gripIndex: number, x: number, y: number) => {
-    // If we are already drawing and user clicks a *different* grip, finish the connection.
+    const handleGripMouseDown = (itemId: number, gripIndex: number, x: number, y: number) => {
+    if (!projectId) return;
+
     if (
       isDrawingConnection &&
       tempConnection &&
       (tempConnection.sourceItemId !== itemId || tempConnection.sourceGripIndex !== gripIndex)
     ) {
-      const newConnection: Connection = {
-        id: Date.now(),
+      const newConnection = editorStore.addConnection(projectId, {
         sourceItemId: tempConnection.sourceItemId,
         sourceGripIndex: tempConnection.sourceGripIndex,
         targetItemId: itemId,
         targetGripIndex: gripIndex,
         waypoints: tempConnection.waypoints,
-      };
+      });
 
-      setConnections(prev => [...prev, newConnection]);
       setIsDrawingConnection(false);
       setTempConnection(null);
+      setSelectedConnectionId(newConnection.id);
       return;
     }
 
-    // Otherwise, start a new manual polyline from this grip.
     setIsDrawingConnection(true);
     setTempConnection({
       sourceItemId: itemId,
@@ -410,6 +406,7 @@ export default function Editor() {
       currentY: y,
     });
   };
+
 
   const handleGripMouseEnter = (itemId: number, gripIndex: number) => {
     setHoveredGrip({ itemId, gripIndex });
@@ -486,9 +483,9 @@ export default function Editor() {
             <DropdownTrigger>
               <Button variant="light" size="sm" className="text-gray-700 dark:text-gray-300">Edit</Button>
             </DropdownTrigger>
-            <DropdownMenu aria-label="Edit Actions">
-              <DropdownItem key="undo" onPress={undo} isDisabled={!canUndo}>Undo (Ctrl+Z)</DropdownItem>
-              <DropdownItem key="redo" onPress={redo} isDisabled={!canRedo}>Redo (Ctrl+Y)</DropdownItem>
+            <DropdownMenu aria-label="Edit Actions" disabledKeys={[!canUndo && 'undo', !canRedo && 'redo'].filter(Boolean) as string[]}>
+              <DropdownItem key="undo" onPress={undo}>Undo (Ctrl+Z)</DropdownItem>
+              <DropdownItem key="redo" onPress={redo}>Redo (Ctrl+Y)</DropdownItem>
               <DropdownItem key="delete" onPress={() => selectedItemId && handleDeleteItem(selectedItemId)}>
                 Delete Selected (Del)
               </DropdownItem>
@@ -574,6 +571,7 @@ export default function Editor() {
               initialSearchQuery={searchQuery}
             />
           )}
+
         </div>
 
 
@@ -694,11 +692,7 @@ export default function Editor() {
                   item={item}
                   isSelected={item.id === selectedItemId}
                   onSelect={() => handleSelectItem(item.id)}
-                  onChange={(newAttrs) => {
-                    setDroppedItems(prev =>
-                      prev.map(i => i.id === newAttrs.id ? newAttrs : i)
-                    );
-                  }}
+                  onChange={(newAttrs) => handleUpdateItem(newAttrs.id, newAttrs)}
                   onGripMouseDown={handleGripMouseDown}
                   onGripMouseEnter={handleGripMouseEnter}
                   onGripMouseLeave={handleGripMouseLeave}
@@ -846,7 +840,7 @@ export default function Editor() {
           {!rightCollapsed && (
             <CanvasPropertiesSidebar
               items={droppedItems}
-              selectedItemId={selectedItemId}
+              selectedItemId={selectedItemId || undefined}
               onSelectItem={handleSelectItem}
               onDeleteItem={handleDeleteItem}
               onUpdateItem={handleUpdateItem}
