@@ -9,6 +9,10 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Editor from "@/pages/Editor";
 import ReportsPage from "@/pages/Reports";
+import Components from "@/pages/Components";
+
+// Context
+import { ComponentProvider } from "@/context/ComponentContext";
 
 const useAuth = () => {
   const user = { loggedIn: true }; // Toggle this to false to test login
@@ -19,9 +23,6 @@ const ProtectedRoutes = () => {
   const isAuth = useAuth();
   return isAuth ? <Outlet /> : <Navigate to="/login" />;
 };
-
-import { ComponentProvider } from "@/context/ComponentContext";
-import Components from "@/pages/Components";
 
 function App() {
   return (
@@ -44,10 +45,8 @@ function App() {
           <Route path="/editor/:projectId" element={<Editor />} />
         </Route>
 
-        {/* Editor Layout */}
-        <Route path="/editor/:projectId" element={<Editor />} />
+        {/* Other Routes */}
         <Route path="/reports" element={<ReportsPage />} />
-
       </Routes>
     </ComponentProvider>
   );
