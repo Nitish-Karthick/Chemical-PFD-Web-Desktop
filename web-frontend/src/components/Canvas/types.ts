@@ -6,16 +6,21 @@ export interface Grip {
 }
 
 export interface ComponentItem {
+  id: number; // Required
   name: string;
-  icon: string;
-  svg: string;
+  icon: string; // Required, not optional
+  svg: string; // Required, not optional
   class: string;
   object: string;
   args: any[];
   grips?: Grip[];
   isCustom?: boolean;
+  // Additional properties from first block
+  legend?: string;
+  suffix?: string;
+  description?: string;
+  png?: string;
 }
-
 export interface CanvasItem extends ComponentItem {
   id: number;
   x: number;

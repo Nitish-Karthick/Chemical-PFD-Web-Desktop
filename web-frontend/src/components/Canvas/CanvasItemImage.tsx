@@ -1,8 +1,19 @@
 import { useEffect, useRef } from "react";
-import { Image as KonvaImage, Transformer, Circle, Group } from "react-konva";
+import {
+  Image as KonvaImage,
+  Transformer,
+  Circle,
+  Group,
+  Text,
+  Rect,
+} from "react-konva";
 import useImage from "use-image";
 import Konva from "konva";
+
 import { CanvasItemImageProps } from "./types";
+
+const LABEL_HEIGHT = 24;
+const LABEL_OFFSET = 4;
 
 export const CanvasItemImage = ({
   item,
@@ -34,18 +45,19 @@ export const CanvasItemImage = ({
       x: e.target.x(),
       y: e.target.y(),
     };
+
     onChange(updatedItem);
     onDragEnd?.(updatedItem);
   };
 
   const handleTransformEnd = () => {
     const node = groupRef.current;
+
     if (!node) return;
 
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
 
-    // Reset scale to 1 and change width/height instead
     node.scaleX(1);
     node.scaleY(1);
 
@@ -62,90 +74,107 @@ export const CanvasItemImage = ({
     onTransformEnd?.(updatedItem);
   };
 
+  const labelText = item.label || item.name;
+
+  const labelX = item.x;
+  const labelY = item.y + item.height + LABEL_OFFSET;
+
   return (
     <>
+      {/* ================= IMAGE (Selectable / Transformable) ================= */}
       <Group
         ref={groupRef}
-        x={item.x}
-        y={item.y}
-        width={item.width}
+        draggable
         height={item.height}
         rotation={item.rotation}
-        draggable
+        width={item.width}
+        x={item.x}
+        y={item.y}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
       >
         <KonvaImage
-          onClick={onSelect}
-          onTap={onSelect}
+          height={item.height}
           image={image}
+          width={item.width}
           x={0}
           y={0}
-          width={item.width}
-          height={item.height}
+          onClick={onSelect}
+          onTap={onSelect}
         />
       </Group>
 
-      {/* Render Transformer */}
+      {/* ================= LABEL (Visual Only, Behind Everything) ================= */}
+
+      <Text
+        align="center"
+        fill="#374151"
+        fontFamily="Arial, sans-serif"
+        fontSize={12}
+        height={LABEL_HEIGHT - 4}
+        listening={false}
+        text={labelText}
+        verticalAlign="middle"
+        width={item.width}
+        x={labelX}
+        y={labelY + 2}
+      />
+
+      {/* ================= TRANSFORMER ================= */}
       {isSelected && (
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => {
-            // limit resize
             if (newBox.width < 5 || newBox.height < 5) {
               return oldBox;
             }
+
             return newBox;
           }}
         />
       )}
 
-      {/* Render grips AFTER transformer so they appear on top */}
-      {/* Show grips when: component is selected OR when drawing a connection */}
-      {(isSelected || isDrawingConnection) && item.grips && item.grips.map((grip, index) => {
-        // Calculate grip position based on percentage coordinates
-        // NOTE: grips.json uses bottom-left origin (Y=0 at bottom, Y=100 at top)
-        // Canvas uses top-left origin (Y=0 at top, Y=100 at bottom)
-        // So we need to invert the Y coordinate: canvasY = 100 - gripsJsonY
-        const gripX = item.x + (grip.x / 100) * item.width;
-        const gripY = item.y + ((100 - grip.y) / 100) * item.height;
+      {/* ================= GRIPS (Always On Top) ================= */}
+      {(isSelected || isDrawingConnection) &&
+        item.grips?.map((grip, index) => {
+          const gripX = item.x + (grip.x / 100) * item.width;
+          const gripY = item.y + ((100 - grip.y) / 100) * item.height;
 
-        const isHovered = hoveredGrip?.itemId === item.id && hoveredGrip?.gripIndex === index;
+          const isHovered =
+            hoveredGrip?.itemId === item.id && hoveredGrip?.gripIndex === index;
 
-        return (
-          <Circle
-            key={index}
-            x={gripX}
-            y={gripY}
-            radius={isDrawingConnection ? 6 : 5}
-            fill={isHovered ? "#22c55e" : "#3b82f6"}
-            stroke="#ffffff"
-            strokeWidth={isHovered ? 3 : 2}
-            opacity={isDrawingConnection && !isSelected ? 0.7 : 1}
-            listening={true}
-            onMouseDown={(e) => {
-              e.cancelBubble = true;
-              onGripMouseDown?.(item.id, index, gripX, gripY);
-            }}
-            onMouseEnter={(e) => {
-              onGripMouseEnter?.(item.id, index);
-              // Change cursor to pointer
-              const stage = e.target.getStage();
-              if (stage) {
-                stage.container().style.cursor = 'pointer';
-              }
-            }}
-            onMouseLeave={(e) => {
-              onGripMouseLeave?.();
-              // Reset cursor
-              const stage = e.target.getStage();
-              if (stage) {
-                stage.container().style.cursor = 'default';
-              }
-            }}
-          />
-        );
-      })}
+          return (
+            <Circle
+              key={index}
+              listening
+              fill={isHovered ? "#22c55e" : "#3b82f6"}
+              opacity={isDrawingConnection && !isSelected ? 0.7 : 1}
+              radius={isDrawingConnection ? 6 : 5}
+              stroke="#ffffff"
+              strokeWidth={isHovered ? 3 : 2}
+              x={gripX}
+              y={gripY}
+              onMouseDown={(e) => {
+                e.cancelBubble = true;
+                onGripMouseDown?.(item.id, index, gripX, gripY);
+              }}
+              onMouseEnter={(e) => {
+                onGripMouseEnter?.(item.id, index);
+                e.target
+                  .getStage()
+                  ?.container()
+                  .style.setProperty("cursor", "pointer");
+              }}
+              onMouseLeave={(e) => {
+                onGripMouseLeave?.();
+                e.target
+                  .getStage()
+                  ?.container()
+                  .style.setProperty("cursor", "default");
+              }}
+            />
+          );
+        })}
     </>
   );
 };

@@ -1,6 +1,11 @@
-import React, { useState } from "react";
-import { Button, Card, CardBody } from "@heroui/react";
-// import { generateEquipmentReport } from "@/utils/reportUtils";
+import {
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+} from "@heroui/react";
 
 interface Equipment {
   slNo: number;
@@ -9,7 +14,6 @@ interface Equipment {
   description: string;
 }
 
-// Sample data
 const equipmentList: Equipment[] = [
   { slNo: 1, tagNo: "P-01-A/B", type: "Hand Pump", description: "Hand Pump with Drum" },
   { slNo: 2, tagNo: "P-02-A/B", type: "Reciprocating Pump", description: "" },
@@ -23,49 +27,39 @@ const equipmentList: Equipment[] = [
   { slNo: 10, tagNo: "SR-01", type: "Jaw Crusher", description: "" },
 ];
 
-export default function ReportsPage() {
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const handleGenerateReport = async () => {
-    setIsGenerating(true);
-    // try {
-    //   await generateEquipmentReport(equipmentList);
-    // } catch (err) {
-    //   console.error("Failed to generate report", err);
-    // } finally {
-    //   setIsGenerating(false);
-    // }
-  };
-
+export default function EquipmentTable() {
   return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-6">
-        Equipment Reports
-      </h1>
+    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-sm">
+      <h2 className="text-xl font-semibold mb-4">List of Equipment</h2>
 
-      <div className="mb-6">
-        <Button 
-          size="sm"
-          onPress={handleGenerateReport}
-          isLoading={isGenerating}
-        >
-          Generate PDF Report
-        </Button>
-      </div>
+      <Table
+        aria-label="Equipment list table"
+        removeWrapper
+        classNames={{
+          th: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
+          td: "text-gray-600 dark:text-gray-300",
+        }}
+      >
+        <TableHeader>
+          <TableColumn>Sl No</TableColumn>
+          <TableColumn>Tag No</TableColumn>
+          <TableColumn>Type</TableColumn>
+          <TableColumn>Description</TableColumn>
+        </TableHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {equipmentList.map((item) => (
-          <Card key={item.slNo} className="bg-white dark:bg-gray-800">
-            <CardBody className="p-4">
-              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                {item.tagNo} - {item.type}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{item.description}</div>
-              <div className="text-xs text-gray-400 mt-1">Sl No: {item.slNo}</div>
-            </CardBody>
-          </Card>
-        ))}
-      </div>
+        <TableBody>
+          {equipmentList.map((item) => (
+            <TableRow key={item.slNo}>
+              <TableCell>{item.slNo}</TableCell>
+              <TableCell className="font-medium">{item.tagNo}</TableCell>
+              <TableCell>{item.type}</TableCell>
+              <TableCell>
+                {item.description || "-"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

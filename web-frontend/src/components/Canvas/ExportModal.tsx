@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Modal,
   ModalContent,
@@ -16,16 +16,17 @@ import {
   Card,
   CardBody,
   Tooltip,
-} from '@heroui/react';
+} from "@heroui/react";
+import { FiDownload, FiImage, FiGrid, FiType } from "react-icons/fi";
+import { TbPhoto, TbFileTypePdf, TbFileTypeSvg } from "react-icons/tb";
+
 import {
   ExportOptions,
   ExportFormat,
   ExportQuality,
   defaultExportOptions,
   exportPresets,
-} from '@/components/Canvas/types';
-import { FiDownload, FiImage, FiFileText, FiGrid, FiType } from 'react-icons/fi';
-import { TbPhoto, TbFileTypePdf, TbFileTypeSvg } from 'react-icons/tb';
+} from "@/components/Canvas/types";
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -35,16 +36,16 @@ interface ExportModalProps {
 }
 
 const formatOptions = [
-  { key: 'png', label: 'PNG', icon: <TbPhoto /> },
-  { key: 'jpg', label: 'JPEG', icon: <FiImage /> },
-  { key: 'pdf', label: 'PDF', icon: <TbFileTypePdf /> },
-  { key: 'svg', label: 'SVG', icon: <TbFileTypeSvg /> },
+  { key: "png", label: "PNG", icon: <TbPhoto /> },
+  { key: "jpg", label: "JPEG", icon: <FiImage /> },
+  { key: "pdf", label: "PDF", icon: <TbFileTypePdf /> },
+  { key: "svg", label: "SVG", icon: <TbFileTypeSvg /> },
 ];
 
 const qualityOptions = [
-  { key: 'low', label: 'Low' },
-  { key: 'medium', label: 'Medium' },
-  { key: 'high', label: 'High' },
+  { key: "low", label: "Low" },
+  { key: "medium", label: "Medium" },
+  { key: "high", label: "High" },
 ];
 
 export default function ExportModal({
@@ -54,13 +55,14 @@ export default function ExportModal({
   isExporting,
 }: ExportModalProps) {
   const [options, setOptions] = useState<ExportOptions>(defaultExportOptions);
-  const [selectedPreset, setSelectedPreset] = useState<string>('presentation');
+  const [selectedPreset, setSelectedPreset] = useState<string>("presentation");
 
   const handlePresetSelect = (presetId: string) => {
-    const preset = exportPresets.find(p => p.id === presetId);
+    const preset = exportPresets.find((p) => p.id === presetId);
+
     if (preset) {
       setSelectedPreset(presetId);
-      setOptions(prev => ({
+      setOptions((prev) => ({
         ...prev,
         ...preset.options,
       }));
@@ -73,11 +75,11 @@ export default function ExportModal({
 
   return (
     <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="2xl"
-      scrollBehavior="inside"
       backdrop="blur"
+      isOpen={isOpen}
+      scrollBehavior="inside"
+      size="2xl"
+      onClose={onClose}
     >
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
@@ -95,15 +97,15 @@ export default function ExportModal({
           <div>
             <h3 className="text-sm font-medium mb-2">Quick Presets</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
-              {exportPresets.map(preset => (
+              {exportPresets.map((preset) => (
                 <Card
                   key={preset.id}
-                  isPressable
                   isHoverable
+                  isPressable
                   className={`cursor-pointer transition-all ${
                     selectedPreset === preset.id
-                      ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : ''
+                      ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                      : ""
                   }`}
                   onPress={() => handlePresetSelect(preset.id)}
                 >
@@ -126,15 +128,14 @@ export default function ExportModal({
                 orientation="horizontal"
                 value={options.format}
                 onValueChange={(value) =>
-                  setOptions(prev => ({ ...prev, format: value as ExportFormat }))
+                  setOptions((prev) => ({
+                    ...prev,
+                    format: value as ExportFormat,
+                  }))
                 }
               >
-                {formatOptions.map(format => (
-                  <Radio
-                    key={format.key}
-                    value={format.key}
-                    className="mr-4"
-                  >
+                {formatOptions.map((format) => (
+                  <Radio key={format.key} className="mr-4" value={format.key}>
                     <div className="flex items-center gap-2">
                       {format.icon}
                       {format.label}
@@ -154,16 +155,16 @@ export default function ExportModal({
                   </span>
                 </div>
                 <Select
-                  size="sm"
                   selectedKeys={[options.quality]}
+                  size="sm"
                   onChange={(e) =>
-                    setOptions(prev => ({
+                    setOptions((prev) => ({
                       ...prev,
                       quality: e.target.value as ExportQuality,
                     }))
                   }
                 >
-                  {qualityOptions.map(quality => (
+                  {qualityOptions.map((quality) => (
                     <SelectItem key={quality.key}>{quality.label}</SelectItem>
                   ))}
                 </Select>
@@ -172,20 +173,18 @@ export default function ExportModal({
               <div>
                 <div className="flex justify-between mb-2">
                   <h3 className="text-sm font-medium">Scale</h3>
-                  <span className="text-sm text-gray-500">
-                    {options.scale}
-                  </span>
+                  <span className="text-sm text-gray-500">{options.scale}</span>
                 </div>
                 <Slider
-                  size="sm"
-                  minValue={0.5}
+                  className="max-w-md"
                   maxValue={3}
+                  minValue={0.5}
+                  size="sm"
                   step={0.1}
                   value={options.scale}
                   onChange={(value) =>
-                    setOptions(prev => ({ ...prev, scale: value as number }))
+                    setOptions((prev) => ({ ...prev, scale: value as number }))
                   }
-                  className="max-w-md"
                 />
               </div>
             </div>
@@ -193,12 +192,12 @@ export default function ExportModal({
             {/* Advanced Options */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium">Advanced Options</h3>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Switch
                   isSelected={options.includeGrid}
                   onValueChange={(value) =>
-                    setOptions(prev => ({ ...prev, includeGrid: value }))
+                    setOptions((prev) => ({ ...prev, includeGrid: value }))
                   }
                 >
                   <div className="flex items-center gap-2">
@@ -210,7 +209,7 @@ export default function ExportModal({
                 <Switch
                   isSelected={options.includeWatermark}
                   onValueChange={(value) =>
-                    setOptions(prev => ({ ...prev, includeWatermark: value }))
+                    setOptions((prev) => ({ ...prev, includeWatermark: value }))
                   }
                 >
                   <div className="flex items-center gap-2">
@@ -222,60 +221,81 @@ export default function ExportModal({
 
               {options.includeWatermark && (
                 <Input
-                  size="sm"
                   label="Watermark Text"
+                  placeholder="Enter watermark text"
+                  size="sm"
                   value={options.watermarkText}
                   onChange={(e) =>
-                    setOptions(prev => ({ ...prev, watermarkText: e.target.value }))
+                    setOptions((prev) => ({
+                      ...prev,
+                      watermarkText: e.target.value,
+                    }))
                   }
-                  placeholder="Enter watermark text"
                 />
               )}
 
               <div>
                 <div className="flex justify-between mb-2">
                   <h3 className="text-sm font-medium">Padding</h3>
-                  <span className="text-sm text-gray-500">{options.padding}px</span>
+                  <span className="text-sm text-gray-500">
+                    {options.padding}px
+                  </span>
                 </div>
                 <Slider
-                  size="sm"
-                  minValue={0}
+                  className="max-w-md"
                   maxValue={100}
+                  minValue={0}
+                  size="sm"
                   step={5}
                   value={options.padding}
                   onChange={(value) =>
-                    setOptions(prev => ({ ...prev, padding: value as number }))
+                    setOptions((prev) => ({
+                      ...prev,
+                      padding: value as number,
+                    }))
                   }
-                  className="max-w-md"
                 />
               </div>
 
               <div>
                 <h3 className="text-sm font-medium mb-2">Background Color</h3>
                 <div className="flex gap-2">
-                  {['#ffffff', '#f8fafc', '#1e293b', 'transparent'].map(color => (
-                    <Tooltip key={color} content={color === 'transparent' ? 'Transparent' : color}>
-                      <button
-                        className={`w-8 h-8 rounded border ${
-                          options.backgroundColor === color
-                            ? 'ring-2 ring-blue-500 ring-offset-2'
-                            : ''
-                        }`}
-                        style={{ backgroundColor: color }}
-                        onClick={() =>
-                          setOptions(prev => ({ ...prev, backgroundColor: color }))
+                  {["#ffffff", "#f8fafc", "#1e293b", "transparent"].map(
+                    (color) => (
+                      <Tooltip
+                        key={color}
+                        content={
+                          color === "transparent" ? "Transparent" : color
                         }
-                      />
-                    </Tooltip>
-                  ))}
+                      >
+                        <button
+                          className={`w-8 h-8 rounded border ${
+                            options.backgroundColor === color
+                              ? "ring-2 ring-blue-500 ring-offset-2"
+                              : ""
+                          }`}
+                          style={{ backgroundColor: color }}
+                          onClick={() =>
+                            setOptions((prev) => ({
+                              ...prev,
+                              backgroundColor: color,
+                            }))
+                          }
+                        />
+                      </Tooltip>
+                    ),
+                  )}
                   <Input
-                    size="sm"
                     className="flex-1"
+                    placeholder="#ffffff"
+                    size="sm"
                     value={options.backgroundColor}
                     onChange={(e) =>
-                      setOptions(prev => ({ ...prev, backgroundColor: e.target.value }))
+                      setOptions((prev) => ({
+                        ...prev,
+                        backgroundColor: e.target.value,
+                      }))
                     }
-                    placeholder="#ffffff"
                   />
                 </div>
               </div>
@@ -289,9 +309,9 @@ export default function ExportModal({
           </Button>
           <Button
             color="primary"
-            onPress={handleExport}
             isLoading={isExporting}
             startContent={!isExporting && <FiDownload />}
+            onPress={handleExport}
           >
             Export Diagram
           </Button>
