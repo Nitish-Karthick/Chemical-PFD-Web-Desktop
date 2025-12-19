@@ -4,13 +4,13 @@ import { Stage, Layer, Line } from "react-konva";
 import Konva from "konva";
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Tooltip } from "@heroui/react";
 import { ThemeSwitch } from "@/components/theme-switch";
-import { componentsConfig } from "@/assets/config/items";
 import { CanvasItemImage } from "@/components/Canvas/CanvasItemImage";
 import { ConnectionLine } from "@/components/Canvas/ConnectionLine";
 import { ComponentLibrarySidebar, CanvasPropertiesSidebar } from "@/components/Canvas/ComponentLibrarySidebar";
 import { ComponentItem, CanvasItem, Connection, Grip } from "@/components/Canvas/types";
 import { calculateManualPathsWithBridges } from "@/utils/routing";
 import { useHistory } from "@/hooks/useHistory";
+import { useComponents } from "@/context/ComponentContext";
 import { TbLayoutSidebarRightExpand, TbLayoutSidebarRightCollapse, TbLayoutSidebarLeftCollapse, TbLayoutSidebarLeftExpand } from "react-icons/tb";
 import { MdZoomIn, MdZoomOut, MdCenterFocusWeak } from "react-icons/md";
 import ExportModal from '@/components/Canvas/ExportModal';
@@ -45,7 +45,7 @@ export default function Editor() {
   };
 
   // --- State ---
-  const [components, setComponents] = useState<Record<string, Record<string, ComponentItem>>>({});
+  const { components } = useComponents();
   const handleZoomIn = () => {
     setStageScale(prev => Math.min(3, prev + 0.1)); // Max 300%, increment 10%
   };
