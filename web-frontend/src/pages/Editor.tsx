@@ -40,10 +40,13 @@ import { useExport } from "@/hooks/useExport";
 import { ExportOptions } from "@/components/Canvas/types";
 import {
   useEditorStore,
+} from "@/store/useEditorStore";
+import {
   type ComponentItem,
   type CanvasItem,
   type CanvasState,
-} from "@/store/useEditorStore";
+  type Connection,
+} from "@/components/Canvas/types";
 import { ExportReportModal } from "@/components/Canvas/ExportReportModal";
 
 type Shortcut = {
@@ -61,9 +64,8 @@ export default function Editor() {
   const navigate = useNavigate();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
-  const [historyReady, setHistoryReady] = useState(false);
-  const [historyInitialState, setHistoryInitialState] =
-    useState<CanvasState | null>(null);
+  // State variables related to history were removed as they were unused
+
 
 
   const isCtrlOrCmd = (e: KeyboardEvent) => e.ctrlKey || e.metaKey;
@@ -207,7 +209,7 @@ export default function Editor() {
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
 
   // Refs
-  const stageRef = useRef<any>(null); // loosened type to avoid runtime null issues
+  const stageRef = useRef<Konva.Stage>(null); // loosened type to avoid runtime null issues
   const containerRef = useRef<HTMLDivElement>(null);
   const dragItemRef = useRef<ComponentItem | null>(null);
 
@@ -418,7 +420,7 @@ export default function Editor() {
       });
     } else {
       // Pan logic
-      setStagePos((prev) => ({
+      setStagePos((prev: { x: number; y: number }) => ({
         x: prev.x - e.evt.deltaX,
         y: prev.y - e.evt.deltaY,
       }));
@@ -430,7 +432,7 @@ export default function Editor() {
 
     editorStore.deleteItem(projectId, itemId);
 
-    setSelectedItemIds(prev => {
+    setSelectedItemIds((prev: Set<number>) => {
       const next = new Set(prev);
       next.delete(itemId);
       return next;
@@ -446,7 +448,7 @@ export default function Editor() {
 
         return {
           ...prev,
-          items: prev.items.map((it) =>
+          items: prev.items.map((it: CanvasItem) =>
             it.id === itemId ? { ...it, ...updates } : it
           ),
         };
@@ -568,7 +570,7 @@ export default function Editor() {
         const pointer = stage.getRelativePointerPosition();
 
         if (pointer) {
-          setTempConnection((prev) =>
+          setTempConnection((prev: any) =>
             prev
               ? {
                 ...prev,
@@ -841,7 +843,7 @@ export default function Editor() {
                   const pointer = stage.getRelativePointerPosition();
 
                   if (pointer) {
-                    setTempConnection((prev) =>
+                    setTempConnection((prev: any) =>
                       prev
                         ? {
                           ...prev,
@@ -882,7 +884,7 @@ export default function Editor() {
           >
             <Layer>
               {/* Render Connections */}
-              {connections.map((connection) => (
+              {connections.map((connection: Connection) => (
                 <ConnectionLine
                   key={connection.id}
                   connection={connection}
@@ -890,9 +892,9 @@ export default function Editor() {
                   items={droppedItems}
                   pathData={connectionPaths[connection.id]}
                   points={[]}
-                  onSelect={(e) => {
+                  onSelect={(e: Konva.KonvaEventObject<MouseEvent>) => {
                     const isCtrl = e?.evt.ctrlKey || e?.evt.metaKey;
-                    setSelectedConnectionIds((prev) => {
+                    setSelectedConnectionIds((prev: Set<number>) => {
                       const next = new Set(isCtrl ? prev : []);
                       if (isCtrl && prev.has(connection.id)) {
                         next.delete(connection.id);
@@ -924,7 +926,7 @@ export default function Editor() {
               )}
 
               {/* Render Components */}
-              {droppedItems.map((item) => (
+              {droppedItems.map((item: CanvasItem) => (
                 <CanvasItemImage
                   key={item.id}
                   hoveredGrip={hoveredGrip}
@@ -1060,8 +1062,6 @@ export default function Editor() {
                   </div>
 
                   <div className="pt-2 text-[10px] text-foreground/50">
-                    Ctrl+Click to select multiple items
-                    <br />
                     Ctrl (Windows/Linux) or Cmd (Mac)
                   </div>
                 </div>
@@ -1124,7 +1124,7 @@ export default function Editor() {
       rounded-md bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700
       hover:bg-gray-100 dark:hover:bg-gray-700"
             title={rightCollapsed ? "Expand" : "Collapse"}
-            onClick={() => setRightCollapsed((v) => !v)}
+            onClick={() => setRightCollapsed((v: boolean) => !v)}
           >
             {!rightCollapsed ? (
               <TbLayoutSidebarRightCollapse />
@@ -1139,7 +1139,7 @@ export default function Editor() {
               items={droppedItems}
               selectedItemId={selectedItemIds.size === 1 ? Array.from(selectedItemIds)[0] : undefined}
               onDeleteItem={handleDeleteItem}
-              onSelectItem={(id) => setSelectedItemIds(new Set([id]))}
+              onSelectItem={(id: number) => setSelectedItemIds(new Set([id]))}
               onUpdateItem={handleUpdateItem}
             />
           )}

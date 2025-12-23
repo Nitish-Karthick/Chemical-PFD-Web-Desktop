@@ -4,6 +4,7 @@ export interface Grip {
   y: number;
   side: "top" | "bottom" | "left" | "right";
 }
+import { KonvaEventObject } from "konva/lib/Node";
 
 export interface ComponentItem {
   id?: number; // Optional because library items don't have ids
@@ -19,7 +20,7 @@ export interface ComponentItem {
   legend?: string;
   suffix?: string;
   description?: string;
-  //{png?: string;}
+  png?: string;
 }
 export interface CanvasItem extends ComponentItem {
   id: number;
@@ -28,6 +29,10 @@ export interface CanvasItem extends ComponentItem {
   width: number;
   height: number;
   rotation: number;
+  sequence: number; // increasing counter for insertion order
+  addedAt: number; // timestamp
+  label?: string; // e.g. PRV01A/B or Insulation01
+  objectKey?: string; // for counting
 }
 
 export interface Connection {
@@ -39,6 +44,13 @@ export interface Connection {
   // Optional manual waypoints (absolute canvas coordinates) between source and target grips.
   // When present, the rendered line will go: sourceGrip -> ...waypoints... -> targetGrip.
   waypoints?: { x: number; y: number }[];
+}
+
+export interface CanvasState {
+  items: CanvasItem[];
+  connections: Connection[];
+  counts: Record<string, number>; // counts keyed by objectKey
+  sequenceCounter: number; // increments each add to preserve order
 }
 
 export interface StagePosition {
@@ -64,7 +76,7 @@ export interface ComponentLibrarySidebarProps {
 export interface CanvasItemImageProps {
   item: CanvasItem;
   isSelected: boolean;
-  onSelect: (e?: any) => void; // Loose typing to allow Konva event passing
+  onSelect: (e?: KonvaEventObject<MouseEvent>) => void; // Strict typing
   onChange: (newAttrs: CanvasItem) => void;
   onDragEnd?: (item: CanvasItem) => void;
   onTransformEnd?: (item: CanvasItem) => void;

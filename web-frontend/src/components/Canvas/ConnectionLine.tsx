@@ -1,6 +1,6 @@
 // src/components/Canvas/ConnectionLine.tsx
 
-import React from "react";
+
 import { Path } from "react-konva";
 import { KonvaEventObject } from "konva/lib/Node";
 import { Connection, CanvasItem } from "./types";
@@ -13,7 +13,7 @@ interface ConnectionLineProps {
     // but strictly for drawing, we rely on 'points'
     items?: CanvasItem[];
     isSelected?: boolean;
-    onSelect?: (e: KonvaEventObject<any>) => void;
+    onSelect?: (e: KonvaEventObject<MouseEvent>) => void;
     // Removed 'allConnections' since collision is now handled in the parent/utils
 }
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { ComponentItem } from "@/components/Canvas/types";
 import { componentsConfig as initialConfig } from "@/assets/config/items";
 
@@ -44,7 +44,7 @@ export const ComponentProvider = ({ children }: { children: ReactNode }) => {
                             acc[key] = { ...item, isCustom: true };
                             return acc;
                         }, {} as Record<string, ComponentItem>);
-                        
+
                         next[cat] = { ...next[cat], ...migratedItems };
                     });
                     return next;
