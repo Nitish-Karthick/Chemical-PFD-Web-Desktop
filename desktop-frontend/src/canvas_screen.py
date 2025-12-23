@@ -445,35 +445,17 @@ class CanvasScreen(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # --- Menu Bar ---
         from src.menubar import MenuBarManager
         self.menu_manager = MenuBarManager(self)
         self._connect_menu_signals()
 
-        # --- Central Widget (Stack) ---
-        self.central_stack = QtWidgets.QStackedWidget()
-        self.setCentralWidget(self.central_stack)
-
-        # Page 0: Empty / Placeholder (No Project Open)
-        self.empty_page = QWidget()
-        self.empty_page.setObjectName("emptyPage")
-        # Optional: Add a label or styling to indicate "No Project Open"
-        empty_layout = QVBoxLayout(self.empty_page)
-        empty_label = QLabel("Go to File > New to start a project", self.empty_page)
-        empty_label.setAlignment(Qt.AlignCenter)
-        empty_label.setStyleSheet("color: #888; font-size: 16px;")
-        empty_layout.addWidget(empty_label)
+        container = QWidget()
+        self.setCentralWidget(container)
         
-        self.central_stack.addWidget(self.empty_page)
+        main_layout = QHBoxLayout(container)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # Page 1: Canvas
-        self.canvas = CanvasWidget(self)
-        self.central_stack.addWidget(self.canvas)
-
-        # Show empty page by default
-        self.central_stack.setCurrentIndex(0)
-
-        # --- Left Component Library ---
         self.library = ComponentLibrary(self)
         self.library.setMinimumWidth(280)
         main_layout.addWidget(self.library)
@@ -499,6 +481,7 @@ class CanvasScreen(QMainWindow):
         self.menu_manager.save_project_clicked.connect(lambda: print("Save Project clicked"))
         self.menu_manager.generate_image_clicked.connect(lambda: print("Generate Image clicked"))
         self.menu_manager.generate_report_clicked.connect(lambda: print("Generate Report clicked"))
+        self.menu_manager.add_symbols_clicked.connect(lambda: print("Add Symbols clicked"))
 
     def on_new_project(self):
         canvas = CanvasWidget(self)
@@ -516,40 +499,10 @@ class CanvasScreen(QMainWindow):
         if active_sub and isinstance(active_sub.widget(), CanvasWidget):
             active_sub.widget().delete_selected_components()
 
-    def _connect_menu_signals(self):
-        # File
-        self.menu_manager.new_project_clicked.connect(self.on_new_project)
-        self.menu_manager.back_home_clicked.connect(self.on_back_home)
-        
-        # Edit
-        self.menu_manager.delete_clicked.connect(self.on_delete_component)
-        
-        # Profile
-        self.menu_manager.logout_clicked.connect(self.logout)
-
-        # Placeholders
-        self.menu_manager.open_project_clicked.connect(lambda: print("Open Project clicked"))
-        self.menu_manager.save_project_clicked.connect(lambda: print("Save Project clicked"))
-        self.menu_manager.generate_image_clicked.connect(lambda: print("Generate Image clicked"))
-        self.menu_manager.generate_report_clicked.connect(lambda: print("Generate Report clicked"))
-
-    def on_new_project(self):
-        """Switch to the canvas view."""
-        self.central_stack.setCurrentIndex(1)
-        # Optional: Reset canvas or load new state here if needed
-        print("New Project started - Canvas Active")
-
-    def on_back_home(self):
-        """Navigate back to Landing Page (Index 3)."""
-        slide_to_index(3, direction=-1)
-
-    def on_delete_component(self):
-        """Trigger delete on the canvas."""
-        if self.central_stack.currentIndex() == 1:
-            self.canvas.delete_selected_components()
-
     def logout(self):
         app_state.access_token = None
         app_state.refresh_token = None
         app_state.current_user = None
         slide_to_index(0, direction=-1)
+
+

@@ -147,6 +147,8 @@ class ComponentLibrary(QWidget):
             # 3. Append new components
             new_rows = []
             for comp in api_components:
+                if not isinstance(comp, dict):
+                    continue
                 s_no = str(comp.get('s_no', '')).strip()
                 if not s_no or s_no in existing_s_nos:
                     continue

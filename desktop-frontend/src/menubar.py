@@ -15,6 +15,7 @@ class MenuBarManager(QObject):
     undo_clicked = pyqtSignal()
     redo_clicked = pyqtSignal()
     delete_clicked = pyqtSignal()
+    add_symbols_clicked = pyqtSignal()
     
     generate_image_clicked = pyqtSignal()
     generate_report_clicked = pyqtSignal()
@@ -73,6 +74,12 @@ class MenuBarManager(QObject):
         delete_action.setShortcut("Del")
         delete_action.triggered.connect(self.delete_clicked.emit)
         edit_menu.addAction(delete_action)
+
+        edit_menu.addSeparator()
+
+        add_symbols_action = QAction("Add new symbols", self.main_window)
+        add_symbols_action.triggered.connect(self.add_symbols_clicked.emit)
+        edit_menu.addAction(add_symbols_action)
 
         # --- Generate Menu ---
         generate_menu = menubar.addMenu("Generate")
