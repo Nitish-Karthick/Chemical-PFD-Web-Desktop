@@ -1128,7 +1128,19 @@ export default function Editor() {
                   </button>
                 </Tooltip>
 
-                
+                {/* Snap to Grid Switch */}
+                <Tooltip content={snapToGrid ? "Snap Enabled" : "Snap Disabled"} placement="top">
+                  <Switch
+                    size="sm"
+                    color="primary"
+                    isSelected={snapToGrid}
+                    onValueChange={setSnapToGrid}
+                    aria-label="Snap to Grid"
+                    thumbIcon={({ isSelected, className }) =>
+                      isSelected ? <TbGridDots className={className} /> : <TbGridPattern className={className} />
+                    }
+                  />
+                </Tooltip>
               </div>
 
 
