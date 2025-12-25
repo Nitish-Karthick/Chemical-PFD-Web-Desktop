@@ -40,7 +40,26 @@ class ComponentWidget(QWidget):
         content_rect = self.get_content_rect()
 
         # Render SVG
-        self.renderer.render(painter, content_rect)
+        view_box = self.renderer.viewBoxF()
+        if not view_box.isEmpty():
+            src_aspect = view_box.width() / view_box.height()
+            dest_aspect = content_rect.width() / content_rect.height()
+
+            target_rect = QRectF(content_rect)
+            if src_aspect > dest_aspect:
+                # SVG is wider than destination: fit to width
+                new_h = content_rect.width() / src_aspect
+                target_rect.setHeight(new_h)
+                target_rect.moveTop(content_rect.top() + (content_rect.height() - new_h) / 2)
+            else:
+                # SVG is taller/same: fit to height
+                new_w = content_rect.height() * src_aspect
+                target_rect.setWidth(new_w)
+                target_rect.moveLeft(content_rect.left() + (content_rect.width() - new_w) / 2)
+            
+            self.renderer.render(painter, target_rect)
+        else:
+            self.renderer.render(painter, content_rect)
 
         # Label
         if self.config.get('default_label'):

@@ -1,5 +1,6 @@
-from PyQt5.QtCore import QPoint, QPointF, QRectF
-from PyQt5.QtGui import QPainterPath
+from PyQt5.QtCore import QPoint, QPointF, QRectF, Qt, QLineF, QSizeF
+from PyQt5.QtGui import QPainterPath, QColor, QPen, QBrush, QPolygonF
+import math
 
 class Connection:
     def __init__(self, start_component, start_grip_index, start_side):
@@ -17,7 +18,9 @@ class Connection:
         self.snap_side = None
 
         self.current_pos = QPoint(0, 0) # Used during dragging
-        self.path = [] # List of QPointF
+        self.path = [] # List of QPointF (Raw Orthogonal Points)
+        self.painter_path = QPainterPath() # Final Path with Jumps
+
         
         # Interactive State
         self.is_selected = False
@@ -285,6 +288,8 @@ class Connection:
         points.append(end_point)
         self.path = points
 
+
+
     def _guess_approach_side(self, start, end):
         # Heuristic to guess optimal entry side when dragging freely
         dx = end.x() - start.x()
@@ -294,4 +299,216 @@ class Connection:
             return "left" if dx > 0 else "right" # Entering from left means target is to right
         else:
             return "top" if dy > 0 else "bottom"
+
+    def update_path(self, components, other_connections):
+        """
+        High-level update:
+        1. Calculate Orthogonal Path (points)
+        2. Generate visual path with Jumps (QPainterPath)
+        """
+        self.calculate_path(components)
+        self._generate_jump_path(other_connections)
+
+    def _generate_jump_path(self, other_connections):
+        """
+        Converts self.path (points) into self.painter_path (QPainterPath)
+        with semi-circle jumps over intersecting connections.
+        """
+        self.painter_path = QPainterPath()
+        if not self.path:
+            return
+
+        self.painter_path.moveTo(self.path[0])
+        
+        # radius of the jump
+        r = 6.0 
+
+        for i in range(len(self.path) - 1):
+            p1 = self.path[i]
+            p2 = self.path[i+1]
+            vec = p2 - p1
+            length = math.sqrt(vec.x()**2 + vec.y()**2)
+            if length < 0.1: continue
+            
+            # Unit direction
+            u = vec / length
+
+
+
+            # Identify intersections
+            # We collect (distance_from_p1, intersection_point)
+            intersections = []
+            
+            current_seg = QLineF(p1, p2)
+            
+            for other in other_connections:
+                if other == self: continue
+
+                # Order-Based Jump Logic:
+                # If I am older (lower index) than the other connection, I go straight (don't detect intersection).
+                if self in other_connections:
+                     my_index = other_connections.index(self)
+                     # other is guaranteed to be in other_connections because we are iterating it
+                     other_index = other_connections.index(other) # No try/except needed hopefully
+                     
+                     if my_index < other_index:
+                         continue
+                # iterate other's segments
+                # We use raw points from other.path to be robust
+                if not other.path: continue
+                for j in range(len(other.path) - 1):
+                    op1 = other.path[j]
+                    op2 = other.path[j+1]
+                    other_seg = QLineF(op1, op2)
+                    
+                    # Intersect?
+                    intersection_point = QPointF()
+                    type_ = current_seg.intersect(other_seg, intersection_point)
+                    
+                    if type_ == QLineF.BoundedIntersection:
+                        # Check if it's a real crossing, not just touching endpoints
+                        # and not collinear overlaps
+                        dist = math.sqrt((intersection_point.x() - p1.x())**2 + (intersection_point.y() - p1.y())**2)
+                        
+                        # Filter out hits too close to start/end of segment (corners)
+                        if r < dist < (length - r):
+                            intersections.append(dist)
+
+            intersections.sort()
+            
+            # Build segment with jumps
+            current_dist = 0.0
+            
+            # De-duplicate close intersections (overlapping lines)
+            clean_intersections = []
+            if intersections:
+                last_d = intersections[0]
+                clean_intersections.append(last_d)
+                for d in intersections[1:]:
+                    if d - last_d > 2.2 * r: # Ensure space for jump
+                        clean_intersections.append(d)
+                        last_d = d
+
+            for dist in clean_intersections:
+                # Draw line to jump start
+                # jump start is at dist - r
+                segment_end_dist = dist - r
+                
+                if segment_end_dist > current_dist:
+                    dest = p1 + u * segment_end_dist
+                    self.painter_path.lineTo(dest)
+                
+                # Draw Jump (Arc)
+                # We want a semi-circle. 
+                # QPainterPath.arcTo(rect, startAngle, sweepLength)
+                # Rect is bounding box of the circle.
+                # Center of jump is p1 + u * dist
+                jump_center = p1 + u * dist
+                
+                # Determine rect
+                # This arc should bulge "up" relative to the line direction?
+                # Standard PFD jump convention: usually bumps 'up' (screen Y negative) for horizontal
+                # For vertical, bumps left or right?
+                # Let's say we bump "Positive Normal"
+                # Normal (-y, x)
+                
+                rect_top_left = jump_center - QPointF(r, r)
+                rect = QRectF(rect_top_left, QSizeF(2*r, 2*r))
+                
+                # Calculate angle of the line
+                angle = math.degrees(math.atan2(u.y(), u.x()))
+                # arcTo takes start angle (3 o'clock is 0)
+                # We want to start at angle - 180 (backwards) ? No.
+                # If moving Right (0 deg), we start at 180 (left side of circle) and sweep -180 (up/ccw?)
+                
+                # Actually, simpler: 
+                # p_start = center - u*r
+                # p_end = center + u*r
+                
+                # If we use arcTo, we need the rect.
+                # if Line is Horizontal Right (0 deg)
+                # we draw line to left-of-center.
+                # We want arc to go UP. 
+                # StartAngle 180, Sweep -180 (Clockwise check?)
+                # Qt: Positive sweep is Counter-Clockwise.
+                # if we want Bump UP, we need start 180, sweep 180? (Goes down?)
+                # 0 is East. 90 is North (Screen Y is down, so 90 is Down visually in normal math, but Qt Y is down)
+                # Wait, Qt Y is down.
+                # 0 = Right (X+)
+                # 90 = Down (Y+)
+                # 270 = Up (Y-)
+                
+                # If Horizontal Right: Start 180 (Left), sweep +180 -> goes through 270 (Up). Correct.
+                # If Horizontal Left: Angle 180.
+                # We approach from Right side of circle (0 deg).
+                # Start 0. Sweep -180 -> goes through -90 (Up, which is 270). Correct. (Or +180 goes through 90 Down)
+                
+                # General Formula:
+                # we enter at -u (relative to center).
+                # angle of -u is angle + 180.
+                # we want to bulge 'Left' relative to direction? Or just always Up/Left?
+                # Let's simple fix: always counter-clockwise (+180)
+                
+                self.painter_path.arcTo(rect, -angle + 180, -180) 
+                # Note: Qt angles are counter-clockwise, but Y is flipped.
+                # Visual Check required.
+                
+                current_dist = dist + r
+            
+            # Draw remaining line
+            if current_dist < length:
+                self.painter_path.lineTo(p2)
+
+
+    def paint(self, painter):
+        if self.is_selected:
+            pen = QPen(QColor("#2563eb"), 3)
+            brush_color = QColor("#2563eb")
+        else:
+            pen = QPen(Qt.black, 2)
+            brush_color = Qt.black
+
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        
+        # 1. Draw The Path (with jumps)
+        # Fallback to simple path if painter_path empty
+        if self.painter_path.isEmpty() and self.path:
+             for i in range(len(self.path)-1):
+                 painter.drawLine(self.path[i], self.path[i+1])
+        else:
+             painter.drawPath(self.painter_path)
+
+        # 2. Draw Arrow at End
+        if len(self.path) >= 2:
+            p_end = self.path[-1]
+            p_prev = self.path[-2]
+            
+            # Vector
+            vec = p_end - p_prev
+            l = math.sqrt(vec.x()**2 + vec.y()**2)
+            if l > 0:
+                # Normalize
+                u = vec / l
+                
+                # Arrow Geometry
+                arrow_size = 12
+                # Tip is at p_end
+                # Base center is at p_end - u * arrow_size
+                
+                # Perpendicular vector (-y, x)
+                perp = QPointF(-u.y(), u.x())
+                
+                p_base = p_end - u * arrow_size
+                
+                p1 = p_base + perp * (arrow_size / 2.5)
+                p2 = p_base - perp * (arrow_size / 2.5)
+                
+                arrow_poly = QPolygonF([p_end, p1, p2])
+                
+                painter.setBrush(QBrush(brush_color))
+                painter.drawPolygon(arrow_poly)
+                painter.setBrush(Qt.NoBrush) # Reset
+
+
 

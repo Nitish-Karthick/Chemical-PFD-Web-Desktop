@@ -2,8 +2,10 @@ import os
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import Qt, QPoint, QPointF, QRectF
 from PyQt5.QtWidgets import QWidget, QLabel, QUndoStack
+from PyQt5.QtWidgets import QWidget, QLabel, QUndoStack
 from PyQt5.QtGui import QPainter
 
+from src.connection import Connection
 from src.component_widget import ComponentWidget
 import src.app_state as app_state
 from src.canvas import resources, painter
@@ -67,6 +69,15 @@ class CanvasWidget(QWidget):
             conn.is_selected = False
         self.update()
 
+    def start_connection(self, component, grip_index, side):
+        """Called by ComponentWidget when a port is clicked."""
+        self.deselect_all()
+        # Create a new transient connection
+        self.active_connection = Connection(component, grip_index, side)
+        # Position the end point at the start point initially
+        self.active_connection.current_pos = self.active_connection.get_start_pos()
+        self.update()
+
     # ---------------------- SELECTION + CONNECTION LOGIC ----------------------
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -98,7 +109,7 @@ class CanvasWidget(QWidget):
                 for p in params:
                     old = getattr(hit_connection, p)
                     setattr(hit_connection, p, old + 1.0)
-                    hit_connection.calculate_path()
+                    hit_connection.update_path(self.components, self.connections)
                     new_points = hit_connection.path
                     
                     sens = QPointF(0, 0)
@@ -115,7 +126,7 @@ class CanvasWidget(QWidget):
                         best_sensitivity = sens
                 
                 hit_connection.path = list(base_points)
-                hit_connection.calculate_path()
+                hit_connection.update_path(self.components, self.connections)
 
                 self.drag_param_name = best_param
                 self.drag_sensitivity = best_sensitivity
@@ -158,7 +169,7 @@ class CanvasWidget(QWidget):
                 change = dot / sens_sq
                 new_val = self.drag_start_param_val + change
                 setattr(self.drag_connection, self.drag_param_name, new_val)
-                self.drag_connection.calculate_path()
+                self.drag_connection.update_path(self.components, self.connections)
                 self.update()
 
         super().mouseMoveEvent(event)
@@ -194,7 +205,7 @@ class CanvasWidget(QWidget):
             self.active_connection.clear_snap_target()
             self.active_connection.current_pos = pos
 
-        self.active_connection.calculate_path(self.components)
+        self.active_connection.update_path(self.components, self.connections)
         self.update()
 
     def mouseReleaseEvent(self, event):
@@ -210,7 +221,13 @@ class CanvasWidget(QWidget):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+        if event.key() == Qt.Key_Escape:
+            if self.active_connection:
+                self.active_connection = None
+                self.update()
+            else:
+                self.deselect_all()
+        elif event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
             self.delete_selected_components()
         else:
             super().keyPressEvent(event)
@@ -243,7 +260,7 @@ class CanvasWidget(QWidget):
                     self.active_connection.snap_grip_index,
                     self.active_connection.snap_side
                 )
-                self.active_connection.calculate_path(self.components)
+                self.active_connection.update_path(self.components, self.connections)
                 self.connections.append(self.active_connection)
             
             self.active_connection = None

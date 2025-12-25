@@ -12,17 +12,16 @@ def draw_grid(painter, width, height, theme="light"):
 
 def draw_connections(painter, connections, components):
     # Draw all finished connections
+    # Draw all finished connections
     for conn in connections:
-        conn.calculate_path(components)
+        # Update path with Jump Logic
+        # conn.update_path takes (components, other_connections)
+        conn.update_path(components, connections)
 
-        if conn.is_selected:
-            painter.setPen(QPen(QColor("#2563eb"), 3))
-        else:
-            painter.setPen(QPen(Qt.black, 2))
+        # Render Connection (Line + Arrow + Jumps)
+        conn.paint(painter)
 
-        for i in range(len(conn.path) - 1):
-            painter.drawLine(conn.path[i], conn.path[i + 1])
-
+        # Draw Edit Handles if selected
         if conn.is_selected:
             painter.setBrush(QColor("#2563eb"))
             painter.setPen(Qt.NoPen)
@@ -32,6 +31,11 @@ def draw_connections(painter, connections, components):
 def draw_active_connection(painter, active_connection):
     if active_connection:
         painter.setPen(QPen(Qt.black, 2, Qt.DashLine))
-        path = active_connection.path
-        for i in range(len(path) - 1):
-            painter.drawLine(path[i], path[i + 1])
+        painter.setBrush(Qt.NoBrush)
+        
+        if not active_connection.painter_path.isEmpty():
+            painter.drawPath(active_connection.painter_path)
+        else:
+            path = active_connection.path
+            for i in range(len(path) - 1):
+                painter.drawLine(path[i], path[i + 1])
