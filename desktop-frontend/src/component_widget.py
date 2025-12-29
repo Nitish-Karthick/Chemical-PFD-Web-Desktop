@@ -19,6 +19,8 @@ class ComponentWidget(QWidget):
         self.hover_port = None
         self.is_selected = False
         self.drag_start_global = None
+        
+        self.rotation_angle = 0
 
         self.setAttribute(Qt.WA_Hover, True)
         self.setMouseTracking(True)
@@ -304,5 +306,15 @@ class ComponentWidget(QWidget):
             if hasattr(self.parent(), "handle_connection_release"):
                 self.parent().handle_connection_release(parent_pos)
 
-        self.drag_start_global = None
-        super().mouseReleaseEvent(event)
+
+    # ---------------------- SERIALIZATION ----------------------
+    def to_dict(self):
+        return {
+            "x": self.pos().x(),
+            "y": self.pos().y(),
+            "width": self.width(),
+            "height": self.height(),
+            "rotation": self.rotation_angle,
+            "svg_path": self.svg_path,
+            "config": self.config
+        }

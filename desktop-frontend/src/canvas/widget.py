@@ -357,3 +357,11 @@ class CanvasWidget(QWidget):
     def generate_report(self, filename):
         from src.canvas.export import generate_report_pdf
         generate_report_pdf(self, filename)
+
+    def save_file(self, filename):
+        from src.canvas.export import save_to_pfd
+        save_to_pfd(self, filename)
+
+    def open_file(self, filename):
+        from src.canvas.export import load_from_pfd
+        return load_from_pfd(self, filename)

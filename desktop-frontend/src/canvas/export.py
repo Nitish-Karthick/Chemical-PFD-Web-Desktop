@@ -1,12 +1,15 @@
 """
 Export utilities for canvas content.
 """
+import json
+import os
 from PyQt5.QtCore import Qt, QRectF, QPoint, QSizeF, QSize
 from PyQt5.QtGui import QPainter, QImage, QPageSize, QRegion, QColor
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtWidgets import QWidget, QLabel
 from PyQt5.QtPrintSupport import QPrinter
-
 from src.canvas import painter as canvas_painter
+from src.component_widget import ComponentWidget
+from src.connection import Connection
 
 def export_to_image(canvas, filename):
     """Export canvas to image file (PNG/JPG)."""
@@ -231,7 +234,6 @@ def generate_report_pdf(canvas, filename):
              
              # Fallback if name is missing or unknown
              if (not name or name == "Unknown Component") and hasattr(comp, "svg_path") and comp.svg_path:
-                 import os
                  base = os.path.basename(comp.svg_path)
                  # Remove extension and clean up
                  name = os.path.splitext(base)[0]
@@ -286,4 +288,99 @@ def generate_report_pdf(canvas, filename):
                 
     finally:
         painter.end()
+
+
+# ---------------------- PFD SERIALIZATION ----------------------
+def save_to_pfd(canvas, filename):
+    """Saves the canvas state to a JSON .pfd file."""
+    data = {
+        "version": "1.0",
+        "components": [],
+        "connections": []
+    }
+    
+    # Map components to temporary IDs
+    comp_to_id = {comp: i for i, comp in enumerate(canvas.components)}
+    
+    for comp in canvas.components:
+        comp_data = comp.to_dict()
+        comp_data["id"] = comp_to_id[comp]
+        data["components"].append(comp_data)
+        
+    for conn in canvas.connections:
+        conn_data = conn.to_dict(comp_to_id)
+        data["connections"].append(conn_data)
+        
+    with open(filename, 'w') as f:
+        json.dump(data, f, indent=4)
+
+def load_from_pfd(canvas, filename):
+    """Loads a .pfd file into the canvas."""
+    if not os.path.exists(filename):
+        return False
+        
+    try:
+        with open(filename, 'r') as f:
+            data = json.load(f)
+            
+        # Basic validation
+        if not isinstance(data, dict) or "components" not in data:
+            raise ValueError("Invalid PFD file format")
+            
+        # Clear existing
+        canvas.components = []
+        canvas.connections = []
+        # Clear widgets
+        for child in canvas.children():
+            if isinstance(child, (ComponentWidget, QLabel)):
+                child.deleteLater()
+                
+        # Load Components
+        id_to_comp = {}
+        for comp_data in data.get("components", []):
+            # Reconstruct Component
+            svg_path = comp_data.get("svg_path")
+            config = comp_data.get("config", {})
+            
+            # Fallbacks for legacy/missing data
+            if not svg_path: continue
+            
+            comp = ComponentWidget(svg_path, canvas, config=config)
+            comp.move(comp_data.get("x", 0), comp_data.get("y", 0))
+            comp.resize(comp_data.get("width", 100), comp_data.get("height", 100))
+            if "rotation" in comp_data:
+                comp.rotation_angle = comp_data["rotation"]
+            comp.update() # Apply rotation
+            comp.show()
+            
+            canvas.components.append(comp)
+            id_to_comp[comp_data.get("id")] = comp
+            
+        # Load Connections
+        for conn_data in data.get("connections", []):
+            start_id = conn_data.get("start_id")
+            end_id = conn_data.get("end_id")
+            
+            start_comp = id_to_comp.get(start_id)
+            end_comp = id_to_comp.get(end_id)
+            
+            if start_comp:
+                conn = Connection(start_comp, conn_data.get("start_grip"), conn_data.get("start_side"))
+                if end_comp:
+                    conn.set_end_grip(end_comp, conn_data.get("end_grip"), conn_data.get("end_side"))
+                
+                # Restore adjustments
+                conn.path_offset = conn_data.get("path_offset", 0.0)
+                conn.start_adjust = conn_data.get("start_adjust", 0.0)
+                conn.end_adjust = conn_data.get("end_adjust", 0.0)
+                
+                conn.update_path(canvas.components, canvas.connections)
+                canvas.connections.append(conn)
+                
+        canvas.update()
+        return True
+        
+    except Exception as e:
+        print(f"Error loading PFD: {e}")
+        return False
 

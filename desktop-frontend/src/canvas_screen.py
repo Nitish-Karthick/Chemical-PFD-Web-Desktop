@@ -1,3 +1,4 @@
+import os
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QKeySequence
@@ -50,8 +51,8 @@ class CanvasScreen(QMainWindow):
         self.menu_manager.redo_clicked.connect(self.on_redo)
 
         # Placeholders
-        self.menu_manager.open_project_clicked.connect(lambda: print("Open Project clicked"))
-        self.menu_manager.save_project_clicked.connect(self.on_save_project)
+        self.menu_manager.open_project_clicked.connect(self.on_open_file)
+        self.menu_manager.save_project_clicked.connect(self.on_save_file)
         self.menu_manager.generate_image_clicked.connect(self.on_generate_image)
         self.menu_manager.generate_report_clicked.connect(self.on_generate_report)
         self.menu_manager.add_symbols_clicked.connect(self.open_add_symbol_dialog)
@@ -167,6 +168,55 @@ class CanvasScreen(QMainWindow):
                 QtWidgets.QMessageBox.information(self, "Success", f"Report saved to {filename}")
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to generate report:\n{str(e)}")
+
+    def on_save_file(self):
+        active_sub = self.mdi_area.currentSubWindow()
+        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+            return
+            
+        canvas = active_sub.widget()
+        options = QtWidgets.QFileDialog.Options()
+        filename, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save Project", "", 
+            "Process Flow Diagram (*.pfd)", 
+            options=options
+        )
+        
+        if filename:
+            if not filename.lower().endswith(".pfd"):
+                filename += ".pfd"
+            try:
+                canvas.save_file(filename)
+                active_sub.setWindowTitle(f"Canvas - {os.path.basename(filename)}")
+                QtWidgets.QMessageBox.information(self, "Success", f"Project saved to {filename}")
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
+
+    def on_open_file(self):
+        # Create new subwindow for open
+        self.on_new_project()
+        active_sub = self.mdi_area.currentSubWindow()
+        canvas = active_sub.widget()
+        
+        options = QtWidgets.QFileDialog.Options()
+        filename, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Open Project", "", 
+            "Process Flow Diagram (*.pfd)", 
+            options=options
+        )
+        
+        if filename:
+            try:
+                if canvas.open_file(filename):
+                    active_sub.setWindowTitle(f"Canvas - {os.path.basename(filename)}")
+                else:
+                    QtWidgets.QMessageBox.warning(self, "Error", "Failed to load file. It might be corrupted or incompatible.")
+                    active_sub.close()
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
+                active_sub.close()
+        else:
+            active_sub.close()
 
     def logout(self):
         app_state.access_token = None

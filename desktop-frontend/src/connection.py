@@ -512,3 +512,22 @@ class Connection:
 
 
 
+    def to_dict(self, component_to_id):
+        """
+        Serializes connection.
+        component_to_id: dict mapping ComponentWidget instance -> int ID
+        """
+        start_id = component_to_id.get(self.start_component, -1)
+        end_id = component_to_id.get(self.end_component, -1)
+        
+        return {
+            "start_id": start_id,
+            "start_grip": self.start_grip_index,
+            "start_side": self.start_side,
+            "end_id": end_id,
+            "end_grip": self.end_grip_index,
+            "end_side": self.end_side,
+            "path_offset": self.path_offset,
+            "start_adjust": self.start_adjust,
+            "end_adjust": self.end_adjust
+        }
