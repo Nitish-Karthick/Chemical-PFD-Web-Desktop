@@ -2,7 +2,7 @@ import os
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QBrush, QKeySequence
-from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QMdiArea, QShortcut
+from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QMdiArea, QShortcut, QMdiSubWindow
 
 from src.canvas.widget import CanvasWidget
 from src.component_library import ComponentLibrary
@@ -11,7 +11,25 @@ from src.navigation import slide_to_index
 import src.app_state as app_state
 
 
+class CanvasSubWindow(QMdiSubWindow):
+    def closeEvent(self, event):
+        canvas = self.widget()
+        if canvas:
+            from src.canvas.commands import handle_close_event
+            handle_close_event(canvas, event)
+        else:
+            event.accept()
+
 class CanvasScreen(QMainWindow):
+    def closeEvent(self, event):
+        """Handle application close by attempting to close all tabs."""
+        self.mdi_area.closeAllSubWindows()
+        # If any subwindows remain (user cancelled save), ignore the close event
+        if self.mdi_area.subWindowList():
+            event.ignore()
+        else:
+            event.accept()
+
     def __init__(self):
         super().__init__()
 
@@ -53,6 +71,7 @@ class CanvasScreen(QMainWindow):
         # Placeholders
         self.menu_manager.open_project_clicked.connect(self.on_open_file)
         self.menu_manager.save_project_clicked.connect(self.on_save_file)
+        self.menu_manager.save_project_as_clicked.connect(self.on_save_as_file)
         self.menu_manager.generate_image_clicked.connect(self.on_generate_image)
         self.menu_manager.generate_report_clicked.connect(self.on_generate_report)
         self.menu_manager.add_symbols_clicked.connect(self.open_add_symbol_dialog)
@@ -61,7 +80,10 @@ class CanvasScreen(QMainWindow):
         canvas = CanvasWidget(self)
         canvas.update_canvas_theme()
         
-        sub = self.mdi_area.addSubWindow(canvas)
+        sub = CanvasSubWindow()
+        sub.setWidget(canvas)
+        sub.setAttribute(Qt.WA_DeleteOnClose)
+        self.mdi_area.addSubWindow(sub)
         sub.setWindowTitle("New Project")
         sub.showMaximized()
 
@@ -172,12 +194,32 @@ class CanvasScreen(QMainWindow):
     def on_save_file(self):
         active_sub = self.mdi_area.currentSubWindow()
         if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+            QtWidgets.QMessageBox.information(self, "Information", "No file to save.")
             return
             
         canvas = active_sub.widget()
+        # If file already has a path, save directly
+        if canvas.file_path:
+            try:
+                canvas.save_file(canvas.file_path)
+                active_sub.setWindowTitle(f"Canvas - {os.path.basename(canvas.file_path)}")
+                QtWidgets.QMessageBox.information(self, "Success", f"Project saved to {canvas.file_path}")
+            except Exception as e:
+                 QtWidgets.QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
+        else:
+            # Otherwise treat as Save As
+            self.on_save_as_file()
+
+    def on_save_as_file(self):
+        active_sub = self.mdi_area.currentSubWindow()
+        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+             QtWidgets.QMessageBox.information(self, "Information", "No file to save.")
+             return
+             
+        canvas = active_sub.widget()
         options = QtWidgets.QFileDialog.Options()
         filename, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Save Project", "", 
+            self, "Save Project As", "", 
             "Process Flow Diagram (*.pfd)", 
             options=options
         )

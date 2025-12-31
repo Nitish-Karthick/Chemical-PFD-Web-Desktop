@@ -10,6 +10,7 @@ class MenuBarManager(QObject):
     new_project_clicked = pyqtSignal()
     open_project_clicked = pyqtSignal()
     save_project_clicked = pyqtSignal()
+    save_project_as_clicked = pyqtSignal()
     back_home_clicked = pyqtSignal()
     
     undo_clicked = pyqtSignal()
@@ -48,6 +49,11 @@ class MenuBarManager(QObject):
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.save_project_clicked.emit)
         file_menu.addAction(save_action)
+
+        save_as_action = QAction("Save As...", self.main_window)
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.triggered.connect(self.save_project_as_clicked.emit)
+        file_menu.addAction(save_as_action)
 
         file_menu.addSeparator()
 

@@ -1,8 +1,14 @@
 """
-Undo/Redo command classes for canvas operations.
+File operation and Undo/Redo commands for canvas.
 """
-from PyQt5.QtWidgets import QUndoCommand
+import os
+from PyQt5.QtWidgets import QUndoCommand, QMessageBox, QFileDialog
+from src.canvas.export import (
+    save_to_pfd, load_from_pfd, 
+    export_to_image, export_to_pdf, generate_report_pdf
+)
 
+# ---------------------- UNDO COMMANDS ----------------------
 
 class AddCommand(QUndoCommand):
     def __init__(self, canvas, component, pos):
@@ -84,3 +90,67 @@ class MoveCommand(QUndoCommand):
     def undo(self):
         self.component.move(self.old_pos)
         self.component.parentWidget().update()
+
+
+# ---------------------- FILE OPERATIONS ----------------------
+def save_project(canvas, filename):
+    """Saves project and updates canvas state."""
+    save_to_pfd(canvas, filename)
+    canvas.file_path = filename
+    canvas.undo_stack.setClean()
+    # Force UI update and state sync
+    canvas.set_modified(True)
+
+def open_project(canvas, filename):
+    """Opens project and updates canvas state."""
+    if load_from_pfd(canvas, filename):
+        canvas.file_path = filename
+        canvas.undo_stack.clear()
+        # Force UI update and state sync
+        canvas.set_modified(True)
+        return True
+    return False
+
+def handle_close_event(canvas, event):
+    """Handles window close event with unsaved changes check."""
+    if canvas.is_modified:
+        reply = QMessageBox.question(
+            canvas, 'Save Changes?',
+            "There are unsaved changes in the current project.\nWould you like to save them before closing?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save
+        )
+
+        if reply == QMessageBox.Save:
+            if canvas.file_path:
+                save_project(canvas, canvas.file_path)
+                event.accept()
+            else:
+                options = QFileDialog.Options()
+                filename, _ = QFileDialog.getSaveFileName(
+                    canvas, "Save Project", "", 
+                    "Process Flow Diagram (*.pfd)", 
+                    options=options
+                )
+                if filename:
+                    if not filename.lower().endswith(".pfd"):
+                        filename += ".pfd"
+                    save_project(canvas, filename)
+                    event.accept()
+                else:
+                    event.ignore()
+        elif reply == QMessageBox.Discard:
+            event.accept()
+        else:
+            event.ignore()
+    else:
+        # No changes, close immediately
+        event.accept()
+def export_image(canvas, filename):
+    export_to_image(canvas, filename)
+
+def export_pdf(canvas, filename):
+    export_to_pdf(canvas, filename)
+
+def generate_report(canvas, filename):
+    generate_report_pdf(canvas, filename)

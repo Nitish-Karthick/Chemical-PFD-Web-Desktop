@@ -21,6 +21,7 @@ class ComponentWidget(QWidget):
         self.drag_start_global = None
         
         self.rotation_angle = 0
+        self.drag_start_positions = {}
 
         self.setAttribute(Qt.WA_Hover, True)
         self.setMouseTracking(True)
@@ -219,6 +220,12 @@ class ComponentWidget(QWidget):
 
             # PREPARE DRAG
             self.drag_start_global = event.globalPos()
+            
+            # Record start positions for Undo
+            if self.parent() and hasattr(self.parent(), "components"):
+                self.drag_start_positions = {
+                    c: c.pos() for c in self.parent().components if c.is_selected
+                }
 
             event.accept()
         else:
@@ -305,6 +312,26 @@ class ComponentWidget(QWidget):
             parent_pos = self.parent().mapFromGlobal(g)
             if hasattr(self.parent(), "handle_connection_release"):
                 self.parent().handle_connection_release(parent_pos)
+                
+        # UNDOABLE MOVE 
+        if hasattr(self, "drag_start_positions") and self.drag_start_positions:
+            from src.canvas.commands import MoveCommand
+            
+            stack = self.parent().undo_stack
+            moved_items = []
+            
+            for comp, start_pos in self.drag_start_positions.items():
+                if comp.pos() != start_pos:
+                    moved_items.append((comp, start_pos, comp.pos()))
+            
+            if moved_items:
+                stack.beginMacro("Move Components")
+                for comp, start, end in moved_items:
+                    cmd = MoveCommand(comp, start, end)
+                    stack.push(cmd)
+                stack.endMacro()
+            
+            self.drag_start_positions = {}
 
 
     # ---------------------- SERIALIZATION ----------------------

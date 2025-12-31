@@ -36,6 +36,10 @@ class CanvasWidget(QWidget):
         self.components = []
         self.connections = []
         self.active_connection = None
+        
+        self.file_path = None
+        self.is_modified = False
+        self.undo_stack.cleanChanged.connect(self.set_modified)
 
         # Configs
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -346,22 +350,40 @@ class CanvasWidget(QWidget):
         self.undo_stack.push(cmd)
 
     # ---------------------- EXPORT ----------------------
-    def export_to_image(self, filename):
-        from src.canvas.export import export_to_image
-        export_to_image(self, filename)
-
     def export_to_pdf(self, filename):
-        from src.canvas.export import export_to_pdf
-        export_to_pdf(self, filename)
+        from src.canvas.commands import export_pdf
+        export_pdf(self, filename)
 
     def generate_report(self, filename):
-        from src.canvas.export import generate_report_pdf
-        generate_report_pdf(self, filename)
+        from src.canvas.commands import generate_report
+        generate_report(self, filename)
+
+    # ---------------------- FILE MANAGEMENT ----------------------
+    def set_modified(self, clean):
+        """Called when undo stack clean state changes."""
+        self.is_modified = not clean
+        # Update window title if possible
+        if self.parent() and hasattr(self.parent(), "setWindowTitle"):
+            title = self.parent().windowTitle()
+            if not clean:
+                if not title.endswith("*"):
+                    self.parent().setWindowTitle(title + "*")
+            else:
+                if title.endswith("*"):
+                    self.parent().setWindowTitle(title[:-1])
 
     def save_file(self, filename):
-        from src.canvas.export import save_to_pfd
-        save_to_pfd(self, filename)
-
+        from src.canvas.commands import save_project
+        save_project(self, filename)
+        
     def open_file(self, filename):
-        from src.canvas.export import load_from_pfd
-        return load_from_pfd(self, filename)
+        from src.canvas.commands import open_project
+        return open_project(self, filename)
+
+    def closeEvent(self, event):
+        from src.canvas.commands import handle_close_event
+        handle_close_event(self, event)
+
+    def export_to_image(self, filename):
+        from src.canvas.commands import export_image
+        export_image(self, filename)
