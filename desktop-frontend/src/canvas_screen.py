@@ -212,33 +212,6 @@ class CanvasScreen(QMainWindow):
         if active_sub and isinstance(active_sub.widget(), CanvasWidget):
             active_sub.widget().undo_stack.redo()
 
-    def on_save_project(self):
-        active_sub = self.mdi_area.currentSubWindow()
-        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
-            return
-
-        canvas = active_sub.widget()
-        options = QtWidgets.QFileDialog.Options()
-        filename, filter_type = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Save Project", "", 
-            "PDF Files (*.pdf);;JPEG Files (*.jpg);;PFD Files (*.pfd)", 
-            options=options
-        )
-
-        if not filename:
-            return
-
-        if filter_type.startswith("PDF"):
-            if not filename.lower().endswith(".pdf"):
-                filename += ".pdf"
-            canvas.export_to_pdf(filename)
-        elif filter_type.startswith("JPEG"):
-            if not filename.lower().endswith(".jpg"):
-                filename += ".jpg"
-            canvas.export_to_image(filename)
-        elif filter_type.startswith("PFD"):
-            print("PFD Save not implemented yet")
-
     def on_generate_image(self):
         active_sub = self.mdi_area.currentSubWindow()
         if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
@@ -304,21 +277,38 @@ class CanvasScreen(QMainWindow):
              
         canvas = active_sub.widget()
         options = QtWidgets.QFileDialog.Options()
-        filename, _ = QtWidgets.QFileDialog.getSaveFileName(
+        filename, filter_type = QtWidgets.QFileDialog.getSaveFileName(
             self, "Save Project As", "", 
-            "Process Flow Diagram (*.pfd)", 
+            "Process Flow Diagram (*.pfd);;PDF Files (*.pdf);;JPEG Files (*.jpg)", 
             options=options
         )
         
-        if filename:
-            if not filename.lower().endswith(".pfd"):
-                filename += ".pfd"
-            try:
+        if not filename:
+             return
+
+        try:
+            if filter_type.startswith("PDF") or filename.lower().endswith(".pdf"):
+                if not filename.lower().endswith(".pdf"):
+                    filename += ".pdf"
+                canvas.export_to_pdf(filename)
+                QtWidgets.QMessageBox.information(self, "Success", f"Exported to {filename}")
+                
+            elif filter_type.startswith("JPEG") or filename.lower().endswith(".jpg"):
+                if not filename.lower().endswith(".jpg"):
+                    filename += ".jpg"
+                canvas.export_to_image(filename)
+                QtWidgets.QMessageBox.information(self, "Success", f"Exported to {filename}")
+
+            else:
+                # Default to PFD
+                if not filename.lower().endswith(".pfd"):
+                    filename += ".pfd"
                 canvas.save_file(filename)
                 active_sub.setWindowTitle(f"Canvas - {os.path.basename(filename)}")
                 QtWidgets.QMessageBox.information(self, "Success", f"Project saved to {filename}")
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to save file:\n{str(e)}")
 
     def on_open_file(self):
         # Create new subwindow for open
