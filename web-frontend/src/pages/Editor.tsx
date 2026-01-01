@@ -17,6 +17,7 @@ import {
   TbLayoutSidebarRightCollapse,
   TbLayoutSidebarLeftCollapse,
   TbLayoutSidebarLeftExpand,
+  TbFileImport,
 } from "react-icons/tb";
 import { MdZoomIn, MdZoomOut, MdCenterFocusWeak } from "react-icons/md";
 import { FiDownload } from "react-icons/fi";
@@ -108,6 +109,36 @@ export default function Editor() {
 
     const [isExporting, setIsExporting] = useState(false);
 
+    
+const handleImportDiagram = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file || !projectId) return;
+  
+  setIsImporting(true);
+  
+  try {
+    const importData = await importFromDiagramFile(file);
+    const migratedData = migrateExportData(importData);
+    
+    // Restore the canvas state
+    editorStore.hydrateEditor(projectId, migratedData.canvasState);
+    
+    // Restore viewport settings
+    setStageScale(migratedData.viewport.scale);
+    setStagePos(migratedData.viewport.position);
+    setGridSize(migratedData.viewport.gridSize);
+    setShowGrid(migratedData.viewport.showGrid);
+    setSnapToGrid(migratedData.viewport.snapToGrid);
+    
+    alert(`Diagram "${migratedData.project.name}" imported successfully!`);
+  } catch (error) {
+    console.error('Import failed:', error);
+    alert(`Import failed: ${(error as Error).message}`);
+  } finally {
+    setIsImporting(false);
+    event.target.value = ''; // Reset file input
+  }
+};
 // In your Editor.tsx handleExport function:
 const handleExport = async (options: ExportOptions) => {
   if (!projectId || !currentState) {
@@ -918,7 +949,24 @@ useEffect(() => {
         </div>
 
         <div className="flex gap-2">
-          <ThemeSwitch />
+          <ThemeSwitch /> 
+            <Button
+              className="border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300"
+              size="sm"
+              startContent={<TbFileImport />}
+              variant="bordered"
+              onPress={() => {
+                // Create a hidden file input
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.export';
+                input.onchange = (e) => handleImportDiagram(e as any);
+                input.click();
+              }}
+              isLoading={isImporting}
+            >
+              Import
+            </Button>
           <Button
             className="border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300"
             size="sm"
@@ -1376,6 +1424,7 @@ useEffect(() => {
           onClose={() => setShowExportModal(false)}
           onExport={handleExport}
         />
+        
 
         <ExportReportModal
           editorId={projectId ?? ""}
