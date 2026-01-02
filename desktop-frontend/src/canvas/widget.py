@@ -358,6 +358,10 @@ class CanvasWidget(QWidget):
         from src.canvas.commands import generate_report
         generate_report(self, filename)
 
+    def export_to_excel(self, filename):
+        from src.canvas.commands import export_excel
+        export_excel(self, filename)
+
     # ---------------------- FILE MANAGEMENT ----------------------
     def set_modified(self, clean):
         """Called when undo stack clean state changes."""

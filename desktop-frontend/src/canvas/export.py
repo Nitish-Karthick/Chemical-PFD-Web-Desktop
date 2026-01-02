@@ -3,6 +3,7 @@ Export utilities for canvas content.
 """
 import json
 import os
+import pandas as pd
 from PyQt5.QtCore import Qt, QRectF, QPoint, QSizeF, QSize
 from PyQt5.QtGui import QPainter, QImage, QPageSize, QRegion, QColor
 from PyQt5.QtWidgets import QWidget, QLabel
@@ -171,6 +172,40 @@ def generate_report_pdf(canvas, filename):
         
     finally:
         painter.end()
+
+def export_to_excel(canvas, filename):
+    """Exports the list of equipment to an Excel file."""
+    equipment_list = []
+    
+    # Logic similar to draw_equipment_table to extract data
+    for idx, comp in enumerate(canvas.components):
+        tag = comp.config.get("default_label", "")
+        name = comp.config.get("name", "")
+        if (not name or name == "Unknown Component") and getattr(comp, "svg_path", None):
+            name = os.path.splitext(os.path.basename(comp.svg_path))[0]
+            if name.startswith(("905", "907")): name = name[3:]
+            name = name.replace("_", " ").strip()
+            
+        equipment_list.append({
+            "Sr. No.": idx + 1,
+            "Tag Number": tag,
+            "Equipment Description": name or "Unknown Component"
+        })
+        
+    # Sort by Tag Number as in the table
+    equipment_list.sort(key=lambda x: x["Tag Number"])
+    
+    # Re-assign Sr. No. after sort
+    for i, item in enumerate(equipment_list):
+        item["Sr. No."] = i + 1
+        
+    df = pd.DataFrame(equipment_list)
+    
+    # Ensure columns are in order
+    df = df[["Sr. No.", "Tag Number", "Equipment Description"]]
+    
+    # Save to Excel
+    df.to_excel(filename, index=False)
 
 # ---------------------- PFD SERIALIZATION ----------------------
 def save_to_pfd(canvas, filename):
