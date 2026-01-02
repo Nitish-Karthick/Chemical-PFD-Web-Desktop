@@ -192,79 +192,95 @@ export default function Editor() {
     }
   };
   // In your Editor.tsx handleExport function:
-  const handleExport = async (options: ExportOptions) => {
-    if (!projectId || !currentState) {
-      alert('No project loaded');
+const handleExport = async (options: ExportOptions) => {
+  if (!projectId || !currentState) {
+    alert('No project loaded');
+    return;
+  }
+
+  setIsExporting(true);
+
+  // Save current grid state for image exports
+  const originalShowGrid = showGrid;
+
+  try {
+    if (options.format === 'export') {
+      // Custom diagram file export
+      const exportData = createExportData(
+        currentState,
+        {
+          scale: stageScale,
+          position: stagePos,
+          gridSize: gridSize,
+          showGrid: showGrid,
+          snapToGrid: snapToGrid,
+        },
+        projectId,
+        `Diagram ${projectId}`
+      );
+
+      // Use the filename from options or generate default
+      const fileName = options.filename 
+        ? `${options.filename}.pfd` 
+        : `diagram-${projectId}.pfd`;
+      
+      exportToDiagramFile(exportData, fileName);
+      setShowExportModal(false);
       return;
     }
 
-    setIsExporting(true);
-
-    // Save current grid state for image exports
-    const originalShowGrid = showGrid;
-
-    try {
-      if (options.format === 'export') {
-        // Custom diagram file export
-        const exportData = createExportData(
-          currentState,
-          {
-            scale: stageScale,
-            position: stagePos,
-            gridSize: gridSize,
-            showGrid: showGrid,
-            snapToGrid: snapToGrid,
-          },
-          projectId,
-          `Diagram ${projectId}`
-        );
-
-        exportToDiagramFile(exportData, `diagram-${projectId}.export`);
-        setShowExportModal(false);
-        return;
-      }
-
-      // Original image export code
-      if (!stageRef.current) {
-        throw new Error('Stage not available');
-      }
-
-      // Temporarily update grid visibility for image exports
-      if (options.includeGrid !== undefined) {
-        setShowGrid(options.includeGrid);
-      }
-
-      // Force a re-render to update the canvas
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      // Use the updated exportDiagram function with connections
-      const result = await exportDiagram(
-        stageRef.current,
-        droppedItems,
-        {
-          ...options,
-          connections: connections,
-        }
-      );
-
-      const timestamp = new Date().toISOString().split('T')[0];
-      const filename = `diagram-${timestamp}.${options.format}`;
-
-      downloadBlob(result as Blob, filename);
-
-
-      setShowExportModal(false);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert(`Export failed: ${(error as Error).message}`);
-    } finally {
-      // Always restore original grid state for image exports
-      if (options.format !== 'export') {
-        setShowGrid(originalShowGrid);
-      }
-      setIsExporting(false);
+    // Original image export code
+    if (!stageRef.current) {
+      throw new Error('Stage not available');
     }
-  };
+
+    // Temporarily update grid visibility for image exports
+    if (options.includeGrid !== undefined) {
+      setShowGrid(options.includeGrid);
+    }
+
+    // Force a re-render to update the canvas
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Use the updated exportDiagram function with connections
+    const result = await exportDiagram(
+      stageRef.current,
+      droppedItems,
+      {
+        ...options,
+        connections: connections,
+      }
+    );
+
+    // Use the filename from options with correct extension
+    let filename: string;
+    if (options.filename) {
+      // Ensure correct extension based on format
+      const extension = options.format === 'pdf' ? '.pdf' : 
+                       options.format === 'jpg' ? '.jpg' : '.png';
+      
+      // Check if filename already has extension
+      const hasCorrectExtension = options.filename.toLowerCase().endsWith(extension);
+      filename = hasCorrectExtension ? options.filename : `${options.filename}${extension}`;
+    } else {
+      // Default filename
+      const timestamp = new Date().toISOString().split('T')[0];
+      filename = `diagram-${timestamp}.${options.format}`;
+    }
+
+    downloadBlob(result as Blob, filename);
+    setShowExportModal(false);
+  } catch (error) {
+    console.error('Export failed:', error);
+    alert(`Export failed: ${(error as Error).message}`);
+  } finally {
+    // Always restore original grid state for image exports
+    if (options.format !== 'export') {
+      setShowGrid(originalShowGrid);
+    }
+    setIsExporting(false);
+  }
+};
   useEffect(() => {
     if (showExportModal) {
       // Clear all selections when export modal opens

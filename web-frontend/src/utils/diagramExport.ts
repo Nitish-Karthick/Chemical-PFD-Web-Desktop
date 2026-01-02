@@ -1,4 +1,5 @@
 import { DiagramExportData, CanvasState } from '@/components/Canvas/types';
+import { ExportOptions } from '@/components/Canvas/types';
 
 // Current version of the export format
 export const CURRENT_EXPORT_VERSION = '1.0.0';
@@ -82,14 +83,22 @@ export function exportToDiagramFile(
   
   // Create blob
   const blob = new Blob([jsonString], {
-    type: 'application/vnd.diagram-editor+json',
+    type: 'application/vnd.pfd-editor+json',
   });
   
   // Create download link
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = fileName || `diagram-${exportData.project.id}.export`;
+  
+  // Use provided filename or generate default
+  if (fileName) {
+    // Ensure it has the .pfd extension
+    const hasExtension = fileName.toLowerCase().endsWith('.pfd');
+    link.download = hasExtension ? fileName : `${fileName}.pfd`;
+  } else {
+    link.download = `diagram-${exportData.project.id}.pfd`;
+  }
   
   // Trigger download
   document.body.appendChild(link);
@@ -98,6 +107,68 @@ export function exportToDiagramFile(
   
   // Clean up
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Exports canvas as image (PNG, JPG, etc.)
+ */
+export function exportToImage(
+  stage: any, // Konva stage
+  options: ExportOptions
+): void {
+  // Determine MIME type based on format
+  let mimeType: string;
+  let extension: string;
+  
+  switch (options.format) {
+    case 'png':
+      mimeType = 'image/png';
+      extension = '.png';
+      break;
+    case 'jpg':
+      mimeType = 'image/jpeg';
+      extension = '.jpg';
+      break;
+    case 'pdf':
+      // PDF export would require different handling
+      mimeType = 'application/pdf';
+      extension = '.pdf';
+      break;
+    default:
+      mimeType = 'image/png';
+      extension = '.png';
+  }
+  
+  if (options.format === 'pdf') {
+    // PDF export requires special handling (you'd need a PDF library)
+    console.warn('PDF export not implemented yet');
+    return;
+  }
+  
+  // Get data URL from Konva stage
+  const dataUrl = stage.toDataURL({
+    mimeType,
+    quality: options.quality === 'high' ? 1 : options.quality === 'medium' ? 0.75 : 0.5,
+    pixelRatio: options.scale,
+  });
+  
+  // Create download link
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  
+  // Use provided filename or generate default
+  if (options.filename) {
+    // Ensure it has the correct extension
+    const hasExtension = options.filename.toLowerCase().endsWith(extension);
+    link.download = hasExtension ? options.filename : `${options.filename}${extension}`;
+  } else {
+    link.download = `diagram${extension}`;
+  }
+  
+  // Trigger download
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 /**
