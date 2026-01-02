@@ -110,22 +110,76 @@ class ComponentWidget(QWidget):
         """
         Detect if Y-axis should be inverted based on grip coordinates.
         
-        Logic:
-        - If average Y > 50%, likely legacy JSON (needs inversion)
-        - If average Y < 50%, likely Grip Editor (no inversion needed)
+        COORDINATE SYSTEM RULES:
+        
+        LEGACY JSON (needs inversion):
+        - Y=100 or Y>90 → Visual TOP
+        - Y=0 or Y<10 → Visual BOTTOM
+        - Y=50 → Visual MIDDLE
+        
+        MODERN GRIP EDITOR (no inversion):
+        - Y=0 or Y<10 → Visual TOP
+        - Y=100 or Y>90 → Visual BOTTOM
+        - Y=50 → Visual MIDDLE
+        
+        DETECTION STRATEGY:
+        1. If we have grips with Y≈100 marked as "top" → INVERT (legacy)
+        2. If we have grips with Y≈0 marked as "top" → DON'T INVERT (modern)
+        3. If we have grips with Y≈0 marked as "bottom" → INVERT (legacy)
+        4. Otherwise use average: avg Y > 50 → INVERT
         """
         grips = self.get_grips()
         
         if not grips:
             return False
         
-        # Calculate average Y position
+        # Check for side hints (most reliable)
+        for grip in grips:
+            y = grip.get("y", 50)
+            side = grip.get("side", "")
+            
+            # Legacy format: Y=100 with side="top"
+            if y >= 95 and side == "top":
+                return True
+            
+            # Legacy format: Y=0 with side="bottom"
+            if y <= 5 and side == "bottom":
+                return True
+            
+            # Modern format: Y=0 with side="top"
+            if y <= 5 and side == "top":
+                return False
+            
+            # Modern format: Y=100 with side="bottom"
+            if y >= 95 and side == "bottom":
+                return False
+        
+        # Fallback: Check average Y
         y_values = [g.get("y", 50) for g in grips]
         avg_y = sum(y_values) / len(y_values)
         
-        # If grips are mostly in upper half (low Y values), don't invert
-        # If grips are mostly in lower half (high Y values), invert
-        return avg_y > 50
+        # If average is exactly 50, check for extreme values
+        if 45 <= avg_y <= 55:
+            has_high = any(y >= 90 for y in y_values)
+            has_low = any(y <= 10 for y in y_values)
+            
+            # If we have both high and low extremes, it's likely legacy format
+            if has_high and has_low:
+                return True
+        
+        should_invert = avg_y > 50
+        
+        # Debug output for problematic components
+        comp_name = self.config.get("name", "Unknown")
+        debug_components = ["Butterfly Valve", "Float Valve", "Separators for Liquids, Decanter", 
+                          "Fixed Roof Tank", "Jaw Crusher"]
+        
+        if any(name in comp_name for name in debug_components):
+            print(f"[INVERT] {comp_name}:")
+            print(f"  Grips: {[(g.get('x'), g.get('y'), g.get('side')) for g in grips]}")
+            print(f"  Avg Y: {avg_y:.1f}, Should Invert: {should_invert}")
+        
+        return should_invert
     
     def load_grips_from_csv(self):
         """
@@ -230,6 +284,7 @@ class ComponentWidget(QWidget):
             return self._cached_grips
         
         grips = None
+        grip_source = None
         
         # 1. Check CSV first
         csv_result = self.load_grips_from_csv()
@@ -237,12 +292,15 @@ class ComponentWidget(QWidget):
         if csv_result is False:
             # CSV was checked but had no valid grips → try JSON
             grips = self.load_grips_from_json()
+            grip_source = "JSON" if grips else None
         elif csv_result is not None:
             # CSV had valid grips → use them
             grips = csv_result
+            grip_source = "CSV"
         else:
             # Component not in CSV → try JSON
             grips = self.load_grips_from_json()
+            grip_source = "JSON" if grips else None
 
         # 2. If still no grips, try config
         if grips is None:
@@ -251,12 +309,16 @@ class ComponentWidget(QWidget):
                 try:
                     grips = json.loads(cfg)
                     if isinstance(grips, list) and len(grips) > 0:
-                        print(f"[CONFIG] ✓ Loaded grips from config")
+                        comp_name = self.config.get('name', 'Unknown')
+                        # print(f"[CONFIG] ✓ Loaded grips for {comp_name} from config: {grips}")
+                        grip_source = "CONFIG"
                 except:
                     grips = None
             elif isinstance(cfg, list) and len(cfg) > 0:
                 grips = cfg
-                print(f"[CONFIG] ✓ Loaded grips from config")
+                comp_name = self.config.get('name', 'Unknown')
+                # print(f"[CONFIG] ✓ Loaded grips for {comp_name} from config: {grips}")
+                grip_source = "CONFIG"
 
         # 3. Final fallback → default grips
         if grips is None or not isinstance(grips, list) or len(grips) == 0:
@@ -265,6 +327,12 @@ class ComponentWidget(QWidget):
                 {"x": 0, "y": 50, "side": "left"},
                 {"x": 100, "y": 50, "side": "right"},
             ]
+            grip_source = "DEFAULT"
+        
+        # Debug: Print what grips were loaded and from where
+        comp_name = self.config.get("name", "Unknown")
+        if any(name in comp_name for name in ["Butterfly Valve", "Float Valve", "Separators", "Fixed Roof Tank"]):
+            print(f"[GRIP DEBUG] {comp_name} loaded from {grip_source}: {grips}")
 
         # Save to cache
         self._cached_grips = grips
