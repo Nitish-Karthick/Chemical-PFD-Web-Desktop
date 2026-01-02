@@ -18,7 +18,7 @@ class MenuBarManager(QObject):
     delete_clicked = pyqtSignal()
     add_symbols_clicked = pyqtSignal()
     
-    generate_image_clicked = pyqtSignal()
+    generate_excel_clicked = pyqtSignal()
     generate_report_clicked = pyqtSignal()
     
     logout_clicked = pyqtSignal()
@@ -88,10 +88,10 @@ class MenuBarManager(QObject):
         # --- Generate Menu ---
         generate_menu = menubar.addMenu("Generate")
 
-        image_action = QAction("Image", self.main_window)
-        image_action.setShortcut("Ctrl+P")
-        image_action.triggered.connect(self.generate_image_clicked.emit)
-        generate_menu.addAction(image_action)
+        excel_action = QAction("Excel", self.main_window)
+        excel_action.setShortcut("Ctrl+E")
+        excel_action.triggered.connect(self.generate_excel_clicked.emit)
+        generate_menu.addAction(excel_action)
 
         report_action = QAction("Report", self.main_window)
         report_action.setShortcut("Ctrl+R")

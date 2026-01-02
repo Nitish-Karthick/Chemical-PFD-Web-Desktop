@@ -5,7 +5,8 @@ import os
 from PyQt5.QtWidgets import QUndoCommand, QMessageBox, QFileDialog
 from src.canvas.export import (
     save_to_pfd, load_from_pfd, 
-    export_to_image, export_to_pdf, generate_report_pdf
+    export_to_image, export_to_pdf, generate_report_pdf,
+    export_to_excel
 )
 
 # ---------------------- UNDO COMMANDS ----------------------
@@ -154,3 +155,6 @@ def export_pdf(canvas, filename):
 
 def generate_report(canvas, filename):
     generate_report_pdf(canvas, filename)
+
+def export_excel(canvas, filename):
+    export_to_excel(canvas, filename)

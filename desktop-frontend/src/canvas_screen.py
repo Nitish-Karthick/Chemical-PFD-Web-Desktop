@@ -225,7 +225,7 @@ class CanvasScreen(QMainWindow):
         self.menu_manager.open_project_clicked.connect(self.on_open_file)
         self.menu_manager.save_project_clicked.connect(self.on_save_file)
         self.menu_manager.save_project_as_clicked.connect(self.on_save_as_file)
-        self.menu_manager.generate_image_clicked.connect(self.on_generate_image)
+        self.menu_manager.generate_excel_clicked.connect(self.on_generate_excel)
         self.menu_manager.generate_report_clicked.connect(self.on_generate_report)
         self.menu_manager.add_symbols_clicked.connect(self.open_add_symbol_dialog)
 
@@ -374,6 +374,28 @@ class CanvasScreen(QMainWindow):
         
         if filename:
             canvas.export_to_image(filename)
+
+    def on_generate_excel(self):
+        active_sub = self.mdi_area.currentSubWindow()
+        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+            return
+            
+        canvas = active_sub.widget()
+        options = QtWidgets.QFileDialog.Options()
+        filename, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Generate Excel Report", "", 
+            "Excel Files (*.xlsx)", 
+            options=options
+        )
+        
+        if filename:
+            if not filename.lower().endswith(".xlsx"):
+                filename += ".xlsx"
+            try:
+                canvas.export_to_excel(filename)
+                QtWidgets.QMessageBox.information(self, "Success", f"Excel report saved to {filename}")
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to generate excel:\n{str(e)}")
             
     def on_generate_report(self):
         active_sub = self.mdi_area.currentSubWindow()
