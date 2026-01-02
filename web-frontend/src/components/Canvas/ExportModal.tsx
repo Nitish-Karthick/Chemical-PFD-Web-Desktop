@@ -15,7 +15,7 @@ import {
   CardBody,
   Tooltip,
 } from "@heroui/react";
-import { FiDownload, FiImage, FiGrid, FiType } from "react-icons/fi";
+import { FiDownload, FiImage, FiGrid, FiType, FiEdit2 } from "react-icons/fi";
 import { TbPhoto, TbFileTypePdf, TbFileExport } from "react-icons/tb";
 
 import {
@@ -40,7 +40,8 @@ const formatOptions = [
     icon: <TbPhoto />,
     description: "High-quality raster image",
     color: "bg-blue-50 dark:bg-blue-900/20",
-    borderColor: "border-blue-200 dark:border-blue-800"
+    borderColor: "border-blue-200 dark:border-blue-800",
+    extension: ".png"
   },
   { 
     key: "jpg", 
@@ -48,7 +49,8 @@ const formatOptions = [
     icon: <FiImage />,
     description: "Compressed image format",
     color: "bg-green-50 dark:bg-green-900/20",
-    borderColor: "border-green-200 dark:border-green-800"
+    borderColor: "border-green-200 dark:border-green-800",
+    extension: ".jpg"
   },
   { 
     key: "pdf", 
@@ -56,7 +58,8 @@ const formatOptions = [
     icon: <TbFileTypePdf />,
     description: "Vector document format",
     color: "bg-red-50 dark:bg-red-900/20",
-    borderColor: "border-red-200 dark:border-red-800"
+    borderColor: "border-red-200 dark:border-red-800",
+    extension: ".pdf"
   },
   { 
     key: "export", 
@@ -64,7 +67,8 @@ const formatOptions = [
     icon: <TbFileExport />,
     description: "Complete diagram state",
     color: "bg-purple-50 dark:bg-purple-900/20",
-    borderColor: "border-purple-200 dark:border-purple-800"
+    borderColor: "border-purple-200 dark:border-purple-800",
+    extension: ".pfd"
   },
 ];
 
@@ -74,6 +78,9 @@ const qualityOptions = [
   { key: "high", label: "High" },
 ];
 
+// Default filename base
+const DEFAULT_FILENAME = "diagram";
+
 export default function ExportModal({
   isOpen,
   onClose,
@@ -81,7 +88,12 @@ export default function ExportModal({
   isExporting,
 }: ExportModalProps) {
   const [options, setOptions] = useState<ExportOptions>(defaultExportOptions);
+  const [filename, setFilename] = useState<string>(DEFAULT_FILENAME);
+  const [isEditingName, setIsEditingName] = useState<boolean>(false);
+  
   const isDiagramFormat = options.format === 'export';
+  const currentFormat = formatOptions.find(f => f.key === options.format);
+  const fullFilename = `${filename}${currentFormat?.extension || ''}`;
 
   const handleFormatSelect = (formatKey: ExportFormat) => {
     setOptions((prev) => ({
@@ -98,7 +110,47 @@ export default function ExportModal({
   };
 
   const handleExport = async () => {
-    await onExport(options);
+    await onExport({
+      ...options,
+      filename: filename.trim() || DEFAULT_FILENAME,
+    });
+  };
+
+  const handleNameEdit = () => {
+    setIsEditingName(true);
+  };
+
+  const handleNameSave = () => {
+    setIsEditingName(false);
+    // Trim and validate filename
+    const trimmed = filename.trim();
+    if (trimmed) {
+      setFilename(trimmed);
+    } else {
+      setFilename(DEFAULT_FILENAME);
+    }
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Remove extension if user tries to add it
+    let newName = e.target.value;
+    const formatExt = currentFormat?.extension || '';
+    if (formatExt && newName.endsWith(formatExt)) {
+      newName = newName.slice(0, -formatExt.length);
+    }
+    
+    // Basic filename validation (no illegal characters)
+    const sanitized = newName.replace(/[<>:"/\\|?*]/g, '');
+    setFilename(sanitized);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleNameSave();
+    } else if (e.key === 'Escape') {
+      setIsEditingName(false);
+      setFilename(filename.trim() || DEFAULT_FILENAME);
+    }
   };
 
   return (
@@ -121,6 +173,80 @@ export default function ExportModal({
         </ModalHeader>
 
         <ModalBody>
+          {/* Export Filename Section - ADD THIS */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-medium">Export Name</h3>
+              {!isEditingName && (
+                <Button
+                  size="sm"
+                  variant="light"
+                  startContent={<FiEdit2 className="text-sm" />}
+                  onPress={handleNameEdit}
+                >
+                  Edit Name
+                </Button>
+              )}
+            </div>
+            
+            {isEditingName ? (
+              <div className="flex gap-2">
+                <Input
+                  autoFocus
+                  className="flex-1"
+                  placeholder="Enter filename"
+                  size="sm"
+                  value={filename}
+                  onChange={handleNameChange}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleNameSave}
+                  endContent={
+                    <span className="text-gray-400 text-sm">
+                      {currentFormat?.extension}
+                    </span>
+                  }
+                />
+                <Button
+                  size="sm"
+                  color="primary"
+                  onPress={handleNameSave}
+                >
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="light"
+                  onPress={() => {
+                    setIsEditingName(false);
+                    setFilename(filename.trim() || DEFAULT_FILENAME);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                      {filename}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400">
+                      {currentFormat?.extension}
+                    </span>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    Full name: {fullFilename}
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-500 mt-2">
+              The exported file will be saved as "{fullFilename}"
+            </p>
+          </div>
+
           {/* Export Format Buttons (replacing presets) */}
           <div>
             <h3 className="text-sm font-medium mb-2">Export Format</h3>
@@ -144,6 +270,9 @@ export default function ExportModal({
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       {format.description}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {format.extension}
                     </div>
                   </CardBody>
                 </Card>
@@ -358,7 +487,7 @@ export default function ExportModal({
             startContent={!isExporting && <FiDownload />}
             onPress={handleExport}
           >
-            Export Diagram
+            Export {fullFilename}
           </Button>
         </ModalFooter>
       </ModalContent>

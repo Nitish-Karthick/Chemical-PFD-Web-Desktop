@@ -122,16 +122,28 @@ export interface ExportOptions {
 
 export const defaultExportOptions: ExportOptions = {
   format: 'png',
-  scale: 2,
+  scale: 1, // Changed from 2 to match ExportModal default
   quality: 'high',
-  padding: 40,
+  padding: 20, // Changed from 40 to match ExportModal default
   backgroundColor: '#ffffff',
-  showGrid: false,
+  includeGrid: false,
   includeWatermark: false,
   watermarkText: '',
-  includeGrid: false,
+  filename: 'diagram', // Added
 };
-
+export interface ExportOptions {
+  format: ExportFormat;
+  scale: number;
+  backgroundColor: string;
+  padding: number;
+  includeGrid: boolean;
+  includeWatermark: boolean;
+  watermarkText?: string;
+  quality: ExportQuality;
+  filename?: string;
+  // Remove showGrid since it's not in the ExportModal
+  // connections?: Connection[]; // Remove if not used
+}
 export const exportPresets = [
   {
     id: 'presentation',
