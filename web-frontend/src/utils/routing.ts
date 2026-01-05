@@ -217,7 +217,7 @@ export const calculateManualPathsWithBridges = (
 
       // Calculate offset position for the arrow (e.g., 12px back)
       // endPoint = p2 - dir * 12
-      const arrowOffset = 12;
+      const arrowOffset = 4.5;
 
       endPoint = {
         x: lastSeg.p2.x - lastSeg.dir.x * arrowOffset,

@@ -599,7 +599,6 @@ export const componentsConfig: Record<string, Record<string, ComponentItem>> = {
       object: "GateValve",
       args: [],
       legend: "E",
-      suffix: "A",
       suffix: "A/B",
       grips: getGripsForComponent("Gate Valve", "Valves"),
     },
