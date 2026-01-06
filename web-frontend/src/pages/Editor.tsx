@@ -801,15 +801,15 @@ export default function Editor() {
 
         img.onload = () => {
           const aspectRatio = img.width / img.height;
-          const baseSize = 80;
-          let width = baseSize;
-          let height = baseSize;
+          // Use a consistent target area for all components
+          // Adjust this value to change component size: larger = bigger components
+          const targetArea = 2400; // 70 x 70 (was 6400 = 80 x 80)
+          let width: number;
+          let height: number;
 
-          if (aspectRatio > 1) {
-            height = baseSize / aspectRatio;
-          } else {
-            width = baseSize * aspectRatio;
-          }
+          // Calculate dimensions to match target area while maintaining aspect ratio
+          height = Math.sqrt(targetArea / aspectRatio);
+          width = height * aspectRatio;
 
           finalizeAdd(width, height);
         };
