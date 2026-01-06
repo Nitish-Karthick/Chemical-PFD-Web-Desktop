@@ -1,8 +1,5 @@
 PyQt5
 requests
 pandas
-<<<<<<< HEAD
 openpyxl
-=======
-openpyxl
->>>>>>> 40e77ec2decb048860dcf3d283cff8e8964ab4ce
+PyMuPDF
