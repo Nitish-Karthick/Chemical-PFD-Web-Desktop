@@ -13,30 +13,14 @@ import {
   DropdownItem,
 } from "@heroui/react";
 import { useNavigate } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CiFilter } from "react-icons/ci";
-
-// Mock Data
-const projects = [
-  {
-    id: 101,
-    title: "Distillation Unit A",
-    updated: "2 hrs ago",
-    status: "Draft",
-  },
-  {
-    id: 102,
-    title: "Reactor Process Flow",
-    updated: "1 day ago",
-    status: "Review",
-  },
-  {
-    id: 103,
-    title: "Heat Exchanger Loop",
-    updated: "5 days ago",
-    status: "Final",
-  },
-];
+import { NewProjectModal } from "@/components/NewProjectModal";
+import {
+  getProjects,
+  createProject,
+  type SavedProject
+} from "@/utils/projectStorage";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -44,11 +28,24 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [sizeFilter, setSizeFilter] = useState("all");
+  const [projects, setProjects] = useState<SavedProject[]>([]);
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
 
-  const createNewProject = () => {
-    const newId = Date.now();
+  // Load projects from localStorage on mount
+  useEffect(() => {
+    const loadedProjects = getProjects();
+    setProjects(loadedProjects);
+  }, []);
 
-    navigate(`/editor/${newId}`);
+  const handleCreateNewProject = (name: string, description: string) => {
+    // Create project in localStorage
+    const newProject = createProject(name, description || null);
+
+    // Update local state
+    setProjects(prev => [...prev, newProject]);
+
+    // Navigate to editor
+    navigate(`/editor/${newProject.id}`);
   };
 
   const filteredProjects = useMemo(() => {
@@ -56,27 +53,59 @@ export default function Dashboard() {
 
     if (search.trim() !== "") {
       list = list.filter((p) =>
-        p.title.toLowerCase().includes(search.toLowerCase()),
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
       );
     }
 
     if (sortBy === "alpha") {
-      list.sort((a, b) => a.title.localeCompare(b.title));
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      // Sort by most recent (updated_at)
+      list.sort((a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
     }
 
-    // Optional: mock size filter (small/medium/large projects)
+    // Optional: size filter based on number of items
     if (sizeFilter !== "all") {
       list = list.filter((p) => {
-        if (sizeFilter === "small") return p.id < 102;
-        if (sizeFilter === "medium") return p.id >= 102 && p.id < 103;
-        if (sizeFilter === "large") return p.id >= 103;
+        const itemCount = p.canvas_state?.items?.length || 0;
+        if (sizeFilter === "small") return itemCount < 5;
+        if (sizeFilter === "medium") return itemCount >= 5 && itemCount < 15;
+        if (sizeFilter === "large") return itemCount >= 15;
 
         return true;
       });
     }
 
     return list;
-  }, [search, sortBy, sizeFilter]);
+  }, [search, sortBy, sizeFilter, projects]);
+
+  // Helper to format relative time
+  const getRelativeTime = (isoDate: string) => {
+    const date = new Date(isoDate);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+
+    return date.toLocaleDateString();
+  };
+
+  // Get project status based on item count
+  const getProjectStatus = (project: SavedProject) => {
+    const itemCount = project.canvas_state?.items?.length || 0;
+    if (itemCount === 0) return "Draft";
+    if (itemCount < 10) return "In Progress";
+    return "Complete";
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,7 +115,10 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold">My Projects</h1>
           <p className="text-gray-500">Manage your PFD diagrams</p>
         </div>
-        <Button color="primary" onPress={createNewProject}>
+        <Button
+          color="primary"
+          onPress={() => setShowNewProjectModal(true)}
+        >
           + New Diagram
         </Button>
       </div>
@@ -158,21 +190,21 @@ export default function Dashboard() {
               className={sizeFilter === "small" ? "bg-primary/10" : ""}
               onPress={() => setSizeFilter("small")}
             >
-              Small
+              Small (&lt; 5 items)
             </DropdownItem>
             <DropdownItem
               key="medium"
               className={sizeFilter === "medium" ? "bg-primary/10" : ""}
               onPress={() => setSizeFilter("medium")}
             >
-              Medium
+              Medium (5-14 items)
             </DropdownItem>
             <DropdownItem
               key="large"
               className={sizeFilter === "large" ? "bg-primary/10" : ""}
               onPress={() => setSizeFilter("large")}
             >
-              Large
+              Large (15+ items)
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
@@ -181,44 +213,74 @@ export default function Dashboard() {
       <Divider />
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProjects.map((proj) => (
-          <Card
-            key={proj.id}
-            isPressable
-            className="p-2 hover:scale-[1.01] transition-transform cursor-pointer"
-            onPress={() => navigate(`/editor/${proj.id}`)}
-          >
-            <CardHeader className="flex gap-3">
-              <div className="bg-primary/10 p-2 rounded-lg text-2xl">📄</div>
-              <div className="flex flex-col">
-                <p className="text-md font-bold">{proj.title}</p>
-                <p className="text-small text-default-500">
-                  Edited {proj.updated}
+      {filteredProjects.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4">📄</div>
+          <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            {projects.length === 0 ? "No projects yet" : "No projects found"}
+          </h2>
+          <p className="text-gray-500 mb-6">
+            {projects.length === 0
+              ? "Create your first PFD diagram to get started"
+              : "Try adjusting your search or filters"}
+          </p>
+          {projects.length === 0 && (
+            <Button
+              color="primary"
+              size="lg"
+              onPress={() => setShowNewProjectModal(true)}
+            >
+              + Create New Project
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredProjects.map((proj) => (
+            <Card
+              key={proj.id}
+              isPressable
+              className="p-2 hover:scale-[1.01] transition-transform cursor-pointer"
+              onPress={() => navigate(`/editor/${proj.id}`)}
+            >
+              <CardHeader className="flex gap-3">
+                <div className="bg-primary/10 p-2 rounded-lg text-2xl">📄</div>
+                <div className="flex flex-col">
+                  <p className="text-md font-bold">{proj.name}</p>
+                  <p className="text-small text-default-500">
+                    Edited {getRelativeTime(proj.updated_at)}
+                  </p>
+                </div>
+              </CardHeader>
+              <Divider />
+              <CardBody>
+                <p className="text-gray-500 text-sm line-clamp-2">
+                  {proj.description || "No description provided"}
                 </p>
-              </div>
-            </CardHeader>
-            <Divider />
-            <CardBody>
-              <p className="text-gray-500 text-sm">
-                Chemical process flow diagram for standard industrial unit...
-              </p>
-            </CardBody>
-            <CardFooter className="flex justify-between">
-              <Chip
-                color={proj.status === "Final" ? "success" : "warning"}
-                size="sm"
-                variant="flat"
-              >
-                {proj.status}
-              </Chip>
-              <Button color="primary" size="sm" variant="light">
-                Open Editor
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+              </CardBody>
+              <CardFooter className="flex justify-between">
+                <Chip
+                  color={getProjectStatus(proj) === "Complete" ? "success" : "warning"}
+                  size="sm"
+                  variant="flat"
+                >
+                  {getProjectStatus(proj)}
+                </Chip>
+                <span className="text-primary text-sm font-medium">
+                  Click to open →
+                </span>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* New Project Modal */}
+      <NewProjectModal
+        isOpen={showNewProjectModal}
+        onClose={() => setShowNewProjectModal(false)}
+        onCreate={handleCreateNewProject}
+      />
     </div>
   );
 }

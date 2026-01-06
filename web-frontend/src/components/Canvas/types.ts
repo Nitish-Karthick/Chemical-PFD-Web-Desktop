@@ -130,6 +130,8 @@ export const defaultExportOptions: ExportOptions = {
   includeWatermark: false,
   watermarkText: '',
   filename: 'diagram', // Added
+  showGrid: false,
+
 };
 export interface ExportOptions {
   format: ExportFormat;

@@ -160,7 +160,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
 
     // Add some styling through cell metadata
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:D1');
-    
+
     // Style header row (row 4, 0-indexed)
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const cellAddress = XLSX.utils.encode_cell({ r: 3, c: C });
@@ -191,6 +191,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
         font: { italic: true },
         alignment: { horizontal: "center" }
       };
+      ws["!merges"] = ws["!merges"] || [];
       ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 3 } });
     }
 
@@ -249,9 +250,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
               <div class="stat-label">Unique Types</div>
             </div>
             <div class="stat-item">
-              <div class="stat-value">${
-                items.filter((i) => i.description && i.description !== "No description").length
-              }</div>
+              <div class="stat-value">${items.filter((i) => i.description && i.description !== "No description").length
+      }</div>
               <div class="stat-label">With Description</div>
             </div>
           </div>
@@ -267,8 +267,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
             </thead>
             <tbody>
               ${items
-                .map(
-                  (item) => `
+        .map(
+          (item) => `
                 <tr>
                   <td>${item.slNo}</td>
                   <td><strong>${item.tagNo}</strong></td>
@@ -276,8 +276,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
                   <td>${item.description}</td>
                 </tr>
               `,
-                )
-                .join("")}
+        )
+        .join("")}
             </tbody>
           </table>
           <div class="footer">
@@ -309,9 +309,9 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
   // Handle PDF export (uses print dialog)
   const handlePDFExport = () => {
     const printWindow = window.open("", "_blank");
-    
+
     if (!printWindow) return;
-    
+
     // Similar to handlePrint but with PDF-specific instructions
     const pdfContent = `
       <!DOCTYPE html>
@@ -363,9 +363,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
               <div class="meta-label">Equipment Types</div>
             </div>
             <div class="meta-item">
-              <div class="meta-value">${
-                items.filter((i) => i.description && i.description !== "No description").length
-              }</div>
+              <div class="meta-value">${items.filter((i) => i.description && i.description !== "No description").length
+      }</div>
               <div class="meta-label">Documented Items</div>
             </div>
             <div class="meta-item">
@@ -385,8 +384,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
             </thead>
             <tbody>
               ${items
-                .map(
-                  (item) => `
+        .map(
+          (item) => `
                 <tr>
                   <td>${item.slNo}</td>
                   <td><strong>${item.tagNo}</strong></td>
@@ -394,8 +393,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
                   <td>${item.description}</td>
                 </tr>
               `,
-                )
-                .join("")}
+        )
+        .join("")}
             </tbody>
           </table>
           
@@ -418,7 +417,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
         </body>
       </html>
     `;
-    
+
     printWindow.document.write(pdfContent);
     printWindow.document.close();
   };
@@ -513,11 +512,10 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
                   key={format.key}
                   isHoverable
                   isPressable
-                  className={`cursor-pointer transition-all ${
-                    exportFormat === format.key
+                  className={`cursor-pointer transition-all ${exportFormat === format.key
                       ? `ring-2 ring-blue-500 ${format.color} border-2 ${format.borderColor}`
                       : ""
-                  }`}
+                    }`}
                   onPress={() => handleFormatSelect(format.key)}
                 >
                   <CardBody className="p-3">
