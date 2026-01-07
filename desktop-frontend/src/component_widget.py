@@ -14,7 +14,7 @@ class ComponentWidget(QWidget):
         self.renderer = QSvgRenderer(svg_path)
 
         # Standard component size
-        self.setFixedSize(100, 80)
+        self.setFixedSize(120, 100)
 
         self.hover_port = None
         self.is_selected = False
@@ -139,19 +139,19 @@ class ComponentWidget(QWidget):
             side = grip.get("side", "")
             
             # Legacy format: Y=100 with side="top"
-            if y >= 95 and side == "top":
+            if y >= 80 and side == "top":
                 return True
             
             # Legacy format: Y=0 with side="bottom"
-            if y <= 5 and side == "bottom":
+            if y <= 20 and side == "bottom":
                 return True
             
             # Modern format: Y=0 with side="top"
-            if y <= 5 and side == "top":
+            if y <= 20 and side == "top":
                 return False
             
             # Modern format: Y=100 with side="bottom"
-            if y >= 95 and side == "bottom":
+            if y >= 80 and side == "bottom":
                 return False
         
         # Fallback: Check average Y

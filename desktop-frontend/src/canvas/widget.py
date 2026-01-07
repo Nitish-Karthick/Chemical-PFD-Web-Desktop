@@ -203,27 +203,41 @@ class CanvasWidget(QWidget):
             return
 
         snap = False
+        # Find closest grip
+        best_dist = 20.0 # Standard tolerance
+        best_grip = None
+
         for comp in self.components:
+            # Quick bounding box check
             if not comp.geometry().adjusted(-30, -30, 30, 30).contains(pos):
                 continue
             
-            grips = comp.config.get("grips") or [
-                {"x": 0, "y": 50, "side": "left"},
-                {"x": 100, "y": 50, "side": "right"}
-            ]
+            # Don't snap to start component
+            if comp == self.active_connection.start_component:
+                continue
+
+            grips = comp.get_grips()
             content = comp.get_content_rect()
-
-            for i, g in enumerate(grips):
-                cx = content.x() + (g["x"] / 100) * content.width()
-                cy = content.y() + (g["y"] / 100) * content.height()
-                center = comp.mapToParent(QPoint(int(cx), int(cy)))
-
-                if (pos - center).manhattanLength() < 20 and comp != self.active_connection.start_component:
-                    self.active_connection.set_snap_target(comp, i, g["side"])
+            
+            # Use comp's own method if available or calculate logic here
+            # We used comp.get_grip_position(i) elsewhere, let's stick to manual calc for drag loop speed 
+            # OR use the helper we saw in Widget.py earlier? 
+            # No, Widget.py had manual calc. Let's stick to that but use get_grip_position for consistency if possible?
+            # Actually, comp.get_grip_position does the SVG mapping which is better.
+            
+            for i, _ in enumerate(grips):
+                # Calculate global-ish pos (parent relative)
+                center = comp.mapToParent(comp.get_grip_position(i))
+                
+                dist = (pos - center).manhattanLength()
+                if dist < best_dist:
+                    best_dist = dist
+                    best_grip = (comp, i, grips[i]["side"])
                     snap = True
-                    break
-            if snap: 
-                break
+
+        if snap and best_grip:
+            self.active_connection.set_snap_target(best_grip[0], best_grip[1], best_grip[2])
+
 
         if not snap:
             self.active_connection.clear_snap_target()

@@ -101,7 +101,7 @@ class Connection:
         # OFFSETS
         # Base offset (20) + User Adjustments
         # FIX: Clamp stubs to avoid inverting into component
-        off_start = max(10.0, 20.0 + self.start_adjust)
+        off_start = max(10.0, 30.0 + self.start_adjust)
         off_end = max(10.0, 20.0 + self.end_adjust)
         
         # Component Bounds (for smart avoidance)

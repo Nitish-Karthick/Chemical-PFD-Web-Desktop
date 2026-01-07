@@ -488,7 +488,7 @@ class CanvasScreen(QMainWindow):
         )
         
         if not filename:
-            return
+            return False
 
         # PFD File -> Canvas
         if filename.lower().endswith(".pfd"):
@@ -521,6 +521,8 @@ class CanvasScreen(QMainWindow):
             
         else:
              QtWidgets.QMessageBox.warning(self, "Error", "Unsupported file type.")
+        
+        return True
 
     def logout(self):
         app_state.access_token = None
