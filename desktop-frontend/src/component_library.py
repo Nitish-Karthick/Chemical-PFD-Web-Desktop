@@ -5,10 +5,11 @@ import requests
 import src.app_state as app_state
 from src.theme_manager import theme_manager
 from src import api_client
+from src.flow_layout import FlowLayout
 from PyQt5.QtCore import Qt, QMimeData, QSize, QTimer, QPropertyAnimation, QEasingCurve, QEvent, pyqtSignal
 from PyQt5.QtGui import QIcon, QDrag, QMovie, QPixmap, QPalette
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLineEdit, 
+    QWidget, QVBoxLayout, QLineEdit, QFrame, QSizePolicy,
     QScrollArea, QLabel, QToolButton, QGridLayout, QLabel, QApplication, QGraphicsOpacityEffect, QHBoxLayout
 )
 
@@ -68,6 +69,30 @@ class ToastMessage(QLabel):
 
         # Hide after fade-out completes
         QTimer.singleShot(400, self.hide)
+
+        QTimer.singleShot(400, self.hide)
+
+class FlowContainer(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        policy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def sizeHint(self):
+        if self.layout():
+             h = self.layout().heightForWidth(self.width())
+             return QSize(self.width(), h)
+        return super().sizeHint()
+        
+    def minimumSizeHint(self):
+        return QSize(100, 0)
+
+    def resizeEvent(self, event):
+        if self.layout():
+            h = self.layout().heightForWidth(event.size().width())
+            self.setFixedHeight(h)
+        super().resizeEvent(event)
 
 class ComponentButton(QToolButton):
     def __init__(self, component_data, icon_path, parent=None):
@@ -160,8 +185,8 @@ class ComponentLibrary(QWidget):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.new_snos = set()  # holds S.No added in last sync
         
-        self.setMinimumWidth(260)
-        self.setMaximumWidth(260)
+        self.setMinimumWidth(200)
+        # self.setMaximumWidth(260)  <-- Removed to allow resizing
         
         self.component_data = []
         self.icon_buttons = []
@@ -222,12 +247,12 @@ class ComponentLibrary(QWidget):
         
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
         self.scroll_widget = QWidget()
         self.scroll_widget.setObjectName("scrollWidget")
         self.scroll_layout = QVBoxLayout(self.scroll_widget)
-        self.scroll_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.scroll_layout.setAlignment(Qt.AlignTop)
         self.scroll_layout.setSpacing(10)
         
         self.scroll_area.setWidget(self.scroll_widget)
@@ -451,39 +476,65 @@ class ComponentLibrary(QWidget):
             #     }
             # """)
             
-            grid_widget = QWidget()
-            grid_layout = QGridLayout(grid_widget)
-            grid_layout.setSpacing(5)
-            grid_layout.setContentsMargins(5, 5, 5, 5)
-            grid_layout.setAlignment(Qt.AlignLeft)
+            # grid_widget = QWidget()  <-- REPLACED
+            grid_widget = FlowContainer()
             
-            row, col = 0, 0
-            max_cols = 5
-            category_buttons = []
+            # Policy is now handled in FlowContainer __init__
+            
+            flow_layout = FlowLayout(grid_widget, margin=5, hSpacing=5, vSpacing=5)
+            # grid_layout.setSpacing(5)
+            # grid_layout.setContentsMargins(5, 5, 5, 5)
+            # grid_layout.setAlignment(Qt.AlignLeft)
+            
+            # row, col = 0, 0
+            # max_cols = 3  # Changed to 3 columns
+            category_cards = []
             
             for component in sorted(grouped[parent_name], key=lambda x: x['name']):
                 icon_path = self._get_icon_path(parent_name, component['name'], component.get('object', ''))
                 
                 if os.path.exists(icon_path):
-                    button = ComponentButton(component, icon_path)
-                    button.setProperty('category', parent_name)
-                    button.setProperty('component_name', component['name'])
-                    grid_layout.addWidget(button, row, col)
-                    self.icon_buttons.append(button)
-                    category_buttons.append(button)
+                    # --- Create Card Frame ---
+                    card = QFrame()
+                    card.setObjectName("componentCard")
+                    card.setProperty('component_name', component['name'])
+                    card.setProperty('category', parent_name)
                     
-                    col += 1
-                    if col >= max_cols:
-                        col = 0
-                        row += 1
+                    card_layout = QVBoxLayout(card)
+                    card_layout.setContentsMargins(5, 5, 5, 5)
+                    card_layout.setSpacing(2)
+                    card_layout.setAlignment(Qt.AlignCenter)
+                    
+                    # Button (Icon)
+                    button = ComponentButton(component, icon_path)
+                    # Reset button size policy or fixed size if needed, but 56x56 is fine
+                    card_layout.addWidget(button, 0, Qt.AlignCenter)
+                    
+                    # Label (Text)
+                    label = QLabel(component['name'])
+                    label.setWordWrap(True)
+                    label.setAlignment(Qt.AlignCenter)
+                    label.setStyleSheet("border: none; background: transparent; font-size: 10px;")
+                    card_layout.addWidget(label)
+                    
+                    # grid_layout.addWidget(card, row, col)
+                    flow_layout.addWidget(card)
+                    
+                    self.icon_buttons.append(button)
+                    category_cards.append(card)
+                    
+                    # col += 1
+                    # if col >= max_cols:
+                    #     col = 0
+                    #     row += 1
             
-            if category_buttons:
+            if category_cards:
                 self.scroll_layout.addWidget(category_label)
                 self.scroll_layout.addWidget(grid_widget)
                 self.category_widgets.append({
                     'label': category_label,
                     'grid': grid_widget,
-                    'buttons': category_buttons,
+                    'cards': category_cards,
                     'name': parent_name
                 })
 
@@ -563,19 +614,19 @@ class ComponentLibrary(QWidget):
             for category in self.category_widgets:
                 category['label'].setVisible(True)
                 category['grid'].setVisible(True)
-                for button in category['buttons']:
-                    button.setVisible(True)
+                for card in category['cards']:
+                    card.setVisible(True)
             return
         
         for category in self.category_widgets:
             has_match = False
             
-            for button in category['buttons']:
-                component = button.property('component_name').lower()
-                category_name = button.property('category').lower()
+            for card in category['cards']:
+                component = card.property('component_name').lower()
+                category_name = card.property('category').lower()
                 
                 matches = search_text in component or search_text in category_name
-                button.setVisible(matches)
+                card.setVisible(matches)
                 
                 if matches:
                     has_match = True
@@ -667,6 +718,13 @@ class ComponentLibrary(QWidget):
             
             toggle_icon_path = os.path.join("ui", "res", "sun.png")
 
+            # Card Styling (Dark)
+            card_bg = "#1e293b"
+            card_border = "#334155"
+            card_text = "#f8fafc"
+            card_hover_bg = "#334155"
+            card_hover_border = "#60a5fa"
+
         else:
             # --- LIGHT THEME ---
             bg_main       = "#fffaf5"  
@@ -694,6 +752,13 @@ class ComponentLibrary(QWidget):
             scroll_hover  = "#C97B5A"
             
             toggle_icon_path = os.path.join("ui", "res", "moon.png")
+
+            # Card Styling (Light)
+            card_bg = "#ffffff"
+            card_border = "#e2e8f0"
+            card_text = "#334155"
+            card_hover_bg = "#eff6ff"
+            card_hover_border = "#3b82f6"
 
         # Icon Logic
         if os.path.exists(toggle_icon_path):
@@ -779,6 +844,10 @@ class ComponentLibrary(QWidget):
                 background: none;
             }}
             
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background: none;
+            }}
+            
             QLabel#categoryLabel {{
                 background-color: {cat_bg};
                 color: {cat_text};
@@ -798,6 +867,27 @@ class ComponentLibrary(QWidget):
                 border-radius: 6px;
                 padding: 4px;
             }}
+
+            /* Card Styling */
+            QFrame#componentCard {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 8px;
+                min-height: 90px;
+            }}
+            QFrame#componentCard:hover {{
+                background-color: {card_hover_bg};
+                border: 1px solid {card_hover_border};
+            }}
+            
+            QFrame#componentCard QLabel {{
+                color: {card_text};
+                border: none;
+                background: transparent;
+                font-size: 10px;
+                qproperty-wordWrap: true;
+            }}
+            /* Hover effects for buttons */
             QToolButton:hover {{
                 background-color: {btn_hover_bg};
                 border: 1px solid {btn_hover_border};

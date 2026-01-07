@@ -44,21 +44,21 @@ class Connection:
         self.snap_side = None
 
     def get_start_pos(self):
-        # canvas-relative coordinate
-        return self.start_component.mapToParent(
-            self.start_component.get_grip_position(self.start_grip_index)
-        )
+        # canvas-relative coordinate (LOGICAL)
+        if hasattr(self.start_component, "logical_rect"):
+            return self.start_component.logical_rect.topLeft() + self.start_component.get_logical_grip_position(self.start_grip_index)
+        # Fallback to visual (scaled) if logical not available? No, must trigger error or fallback safely.
+        # But for now assume logical exists.
+        return self.start_component.pos() + self.start_component.get_grip_position(self.start_grip_index)
 
     def get_end_pos(self):
         if self.end_component:
-            return self.end_component.mapToParent(
-                self.end_component.get_grip_position(self.end_grip_index)
-            )
-        # If snapping, return snap grip pos
+            return self.end_component.logical_rect.topLeft() + self.end_component.get_logical_grip_position(self.end_grip_index)
+        
+        # If snapping, return snap grip pos (Logical)
         if self.snap_component:
-            return self.snap_component.mapToParent(
-                self.snap_component.get_grip_position(self.snap_grip_index)
-            )
+            return self.snap_component.logical_rect.topLeft() + self.snap_component.get_logical_grip_position(self.snap_grip_index)
+            
         return self.current_pos
         
     def hit_test(self, pos: QPoint, tolerance=5.0):
@@ -104,12 +104,12 @@ class Connection:
         off_start = max(10.0, 30.0 + self.start_adjust)
         off_end = max(10.0, 20.0 + self.end_adjust)
         
-        # Component Bounds (for smart avoidance)
-        sitem = QRectF(self.start_component.geometry())
+        # Component Bounds (for smart avoidance - use LOGICAL RECT)
+        sitem = self.start_component.logical_rect
         if self.end_component:
-            eitem = QRectF(self.end_component.geometry())
+            eitem = self.end_component.logical_rect
         elif self.snap_component:
-            eitem = QRectF(self.snap_component.geometry())
+            eitem = self.snap_component.logical_rect
         else:
             # Fake a small rect around the end point
             eitem = QRectF(end_point.x()-10, end_point.y()-10, 20, 20)
@@ -460,13 +460,18 @@ class Connection:
                 self.painter_path.lineTo(p2)
 
 
-    def paint(self, painter):
+    def paint(self, painter, theme="light", zoom=1.0):
         if self.is_selected:
             pen = QPen(QColor("#2563eb"), 3)
             brush_color = QColor("#2563eb")
         else:
-            pen = QPen(Qt.black, 2)
-            brush_color = Qt.black
+            color = Qt.white if theme == "dark" else Qt.black
+            
+            # Scale line width to be constant VISUAL width (e.g. 2.5px)
+            visual_width = 2.5
+            pen_width = visual_width / max(0.1, zoom)
+            pen = QPen(color, pen_width)
+            brush_color = color
 
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
@@ -491,24 +496,50 @@ class Connection:
                 # Normalize
                 u = vec / l
                 
+                # OFFSET THE ARROW TIP
+                # Visual padding of component plate is ~6px.
+                # 10px visual gap ensures we clear the component plate in Dark Mode.
+                # In Light Mode, we only need to clear the grip radius (~4px), or users might prefer it tighter.
+                
+                visual_retract = 10.0 if theme == "dark" else 4.0
+                retract_px = visual_retract / max(0.1, zoom)
+                
+                if l < retract_px: 
+                    retract_px = 0
+                
+                p_tip = p_end - u * retract_px
+                
                 # Arrow Geometry
-                arrow_size = 12
-                # Tip is at p_end
-                # Base center is at p_end - u * arrow_size
+                # Maintain constant VISUAL size for the arrow
+                visual_arrow_size = 15.0
+                arrow_size = visual_arrow_size / max(0.1, zoom)
                 
                 # Perpendicular vector (-y, x)
                 perp = QPointF(-u.y(), u.x())
                 
-                p_base = p_end - u * arrow_size
+                p_base = p_tip - u * arrow_size
                 
                 p1 = p_base + perp * (arrow_size / 2.5)
                 p2 = p_base - perp * (arrow_size / 2.5)
                 
-                arrow_poly = QPolygonF([p_end, p1, p2])
+                arrow_poly = QPolygonF([p_tip, p1, p2])
                 
+                # Draw Eraser Line to hide the "nose"
+                eraser_color = QColor("#0f172a") if theme == "dark" else Qt.white
+                
+                # Eraser must be slightly thicker than the line to fully cover it
+                eraser_width = (visual_width + 1.0) / max(0.1, zoom)
+                painter.setPen(QPen(eraser_color, eraser_width))
+                painter.drawLine(p_tip, p_end)
+                
+                # Draw Arrow with High Contrast Black Border
+                # Solid Black border ensures visibility on top of EVERYTHING.
+                border_width = 1.5 / max(0.1, zoom)
+                painter.setPen(QPen(Qt.black, border_width))
                 painter.setBrush(QBrush(brush_color))
                 painter.drawPolygon(arrow_poly)
                 painter.setBrush(Qt.NoBrush) # Reset
+                painter.setPen(pen) # Restore pen
 
 
 

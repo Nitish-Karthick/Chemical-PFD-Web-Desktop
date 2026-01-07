@@ -238,8 +238,17 @@ def load_from_pfd(canvas, filename):
         for d in data.get("components", []):
             if not d.get("svg_path"): continue
             comp = ComponentWidget(d["svg_path"], canvas, config=d.get("config", {}))
-            comp.move(d.get("x",0), d.get("y",0))
-            comp.resize(d.get("width",100), d.get("height",100))
+            # Load as Logical Rect
+            comp.logical_rect = QRectF(
+                d.get("x", 0), d.get("y", 0), 
+                d.get("width", 120), d.get("height", 100)
+            )
+            # Apply initial visual state based on current canvas zoom
+            if hasattr(canvas, "zoom_level"):
+                comp.update_visuals(canvas.zoom_level)
+            else:
+                comp.update_visuals(1.0)
+            
             comp.rotation_angle = d.get("rotation", 0)
             comp.update(); comp.show()
             canvas.components.append(comp)

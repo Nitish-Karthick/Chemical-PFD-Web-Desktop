@@ -4,7 +4,7 @@ import json
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtCore import Qt, QRectF, QPoint, QPointF
-from PyQt5.QtGui import QPainter, QColor, QPen
+from PyQt5.QtGui import QPainter, QPen, QColor, QBrush, QColor, QPen
 
 class ComponentWidget(QWidget):
     def __init__(self, svg_path, parent=None, config=None):
@@ -21,7 +21,12 @@ class ComponentWidget(QWidget):
         self.drag_start_global = None
         
         self.rotation_angle = 0
+        self.rotation_angle = 0
         self.drag_start_positions = {}
+        
+        # Logical Coordinates (True 100% scale geometry)
+        # Initialize from current geometry or valid defaults
+        self.logical_rect = QRectF(self.x(), self.y(), 120, 100)
 
         # Cache for grips to prevent file reading lag during paint events
         self._cached_grips = None
@@ -354,12 +359,25 @@ class ComponentWidget(QWidget):
         svg_rect = self.calculate_svg_rect(content_rect)
         self._cached_svg_rect = svg_rect  # Cache it for grip calculations
 
+        # DARK MODE ADAPTATION: Draw background plate if needed
+        # Import inside method to avoid circular imports if any, or rely on global import
+        import src.app_state as app_state
+        if app_state.current_theme == "dark":
+            painter.setBrush(QBrush(QColor("#e2e8f0"))) # Slate 200 (Light Gray)
+            painter.setPen(Qt.NoPen)
+            # Draw rounded rect slightly larger than SVG content
+            # Or just fill the content rect?
+            # Let's fill the content rect with some padding
+            bg_rect = svg_rect.adjusted(-5, -5, 5, 5)
+            painter.drawRoundedRect(bg_rect, 6, 6)
+
         # Render SVG
         self.renderer.render(painter, svg_rect)
 
         # Label
         if self.config.get('default_label'):
-            painter.setPen(QPen(Qt.black))
+            label_color = Qt.white if app_state.current_theme == "dark" else Qt.black
+            painter.setPen(QPen(label_color))
             text_rect = QRectF(0, content_rect.bottom() + 2, self.width(), 20)
             painter.drawText(text_rect, Qt.AlignCenter, self.config['default_label'])
 
@@ -375,10 +393,22 @@ class ComponentWidget(QWidget):
 
         radius = 6 if self.hover_port == idx else 4
         color = QColor("#22c55e") if self.hover_port == idx else QColor("cyan")
-
+        
+        # Scale radius by zoom level to prevent "giant dots" at low zoom
+        zoom = 1.0
+        if self.parent() and hasattr(self.parent(), "zoom_level"):
+            zoom = self.parent().zoom_level
+            
+        # Minimum visibility clamp (e.g., don't go below 2px)
+        scaled_radius = max(2, int(radius * zoom))
+        
+        # If zoom is extremely low (< 0.3), maybe hide non-hovered ports?
+        # User feedback: "grips only showing" - implying component is gone.
+        # But reducing grip size will help clutter.
+        
         painter.setBrush(color)
         painter.setPen(Qt.NoPen)
-        painter.drawEllipse(center, radius, radius)
+        painter.drawEllipse(center, scaled_radius, scaled_radius)
 
     def get_grip_position(self, idx):
         """Get grip position using SVG coordinate mapping"""
@@ -398,6 +428,33 @@ class ComponentWidget(QWidget):
             return QPoint(int(pos.x()), int(pos.y()))
 
         return QPoint(0, 0)
+
+    def get_logical_grip_position(self, idx):
+        """Get grip position in LOGICAL coordinates (unscaled)."""
+        grips = self.get_grips()
+
+        if 0 <= idx < len(grips):
+            grip = grips[idx]
+            
+            # Calculate Logical Content Rect
+            # Replicate get_content_rect logic but using logical size
+            l_w = self.logical_rect.width()
+            l_h = self.logical_rect.height()
+            
+            bottom_pad = 25 if self.config.get('default_label') else 10
+            w = max(1, l_w - 20)
+            h = max(1, l_h - 10 - bottom_pad)
+            
+            logical_content_rect = QRectF(10, 10, w, h)
+            
+            # Calculate Logical SVG Rect
+            logical_svg_rect = self.calculate_svg_rect(logical_content_rect)
+            
+            # Map to coordinates
+            pos = self.map_svg_to_widget_coords(grip["x"], grip["y"], logical_svg_rect)
+            return QPointF(pos.x(), pos.y())
+
+        return QPointF(0, 0)
 
     # SELECTION
     def set_selected(self, selected: bool):
@@ -449,7 +506,12 @@ class ComponentWidget(QWidget):
             g = self.mapToGlobal(event.pos())
             parent_pos = self.parent().mapFromGlobal(g)
             if hasattr(self.parent(), "update_connection_drag"):
-                self.parent().update_connection_drag(parent_pos)
+                # Must convert to LOGICAL coordinates for the canvas
+                if hasattr(self.parent(), "get_logical_pos"):
+                    logical_pos = self.parent().get_logical_pos(parent_pos)
+                    self.parent().update_connection_drag(logical_pos)
+                else:
+                    self.parent().update_connection_drag(parent_pos)
             return
 
         # PORT HOVER DETECTION using SVG coordinate mapping
@@ -487,36 +549,34 @@ class ComponentWidget(QWidget):
                 # move all selected
                 for comp in parent.components:
                     if comp.is_selected:
-                        # Calculate new pos
-                        new_pos = comp.pos() + delta
+                        # Update LOGICAL position
+                        # new_pos is visual. Convert to logical.
+                        z = parent.zoom_level if hasattr(parent, "zoom_level") else 1.0
                         
-                        # Boundary checks
-                        pw = parent.width()
-                        ph = parent.height()
-                        cw = comp.width()
-                        ch = comp.height()
+                        # We calculate delta in logical space
+                        logical_delta = delta / z
                         
-                        # Clamp X and Y
-                        nx = max(0, min(new_pos.x(), pw - cw))
-                        ny = max(0, min(new_pos.y(), ph - ch))
+                        # Update logical rect position
+                        comp.logical_rect.translate(logical_delta.x(), logical_delta.y())
                         
-                        # Apply new position
-                        comp.move(nx, ny)
+                        # Update visuals from logical
+                        comp.update_visuals(z)
+                        
+                        # Auto-Expand
+                        if hasattr(parent, "expand_to_contain"):
+                            parent.expand_to_contain(comp.logical_rect)
                         
                 parent.update()
             else:
-                new_pos = self.pos() + delta
-                
-                # Boundary Check for single item (if unrelated parent)
-                if parent:
-                    pw = parent.width()
-                    ph = parent.height()
-                    nx = max(0, min(new_pos.x(), pw - self.width()))
-                    ny = max(0, min(new_pos.y(), ph - self.height()))
-                    self.move(nx, ny)
-                    parent.update()
-                else:
-                    self.move(new_pos)
+                 # Single item move (fallback)
+                 z = self.parent().zoom_level if (self.parent() and hasattr(self.parent(), "zoom_level")) else 1.0
+                 new_pos = self.pos() + delta
+                 
+                 # Update logical
+                 self.logical_rect.moveTo(new_pos.x() / z, new_pos.y() / z)
+                 self.update_visuals(z)
+                 
+                 if self.parent(): self.parent().update()
 
             self.drag_start_global = curr_global
 
@@ -527,7 +587,12 @@ class ComponentWidget(QWidget):
             g = self.mapToGlobal(event.pos())
             parent_pos = self.parent().mapFromGlobal(g)
             if hasattr(self.parent(), "handle_connection_release"):
-                self.parent().handle_connection_release(parent_pos)
+                # Use Logical
+                if hasattr(self.parent(), "get_logical_pos"):
+                    logical_pos = self.parent().get_logical_pos(parent_pos)
+                    self.parent().handle_connection_release(logical_pos)
+                else:
+                    self.parent().handle_connection_release(parent_pos)
                 
         # UNDOABLE MOVE 
         if hasattr(self, "drag_start_positions") and self.drag_start_positions:
@@ -551,12 +616,26 @@ class ComponentWidget(QWidget):
 
 
     # ---------------------- SERIALIZATION ----------------------
+    # ---------------------- ZOOM LOGIC ----------------------
+    def update_visuals(self, zoom_level):
+        """Update visual geometry based on logical rect and zoom level."""
+        # Calculate visual rect
+        v_x = int(self.logical_rect.x() * zoom_level)
+        v_y = int(self.logical_rect.y() * zoom_level)
+        v_w = int(self.logical_rect.width() * zoom_level)
+        v_h = int(self.logical_rect.height() * zoom_level)
+        
+        # Apply
+        self.setFixedSize(v_w, v_h)
+        self.move(v_x, v_y)
+
+    # ---------------------- SERIALIZATION ----------------------
     def to_dict(self):
         return {
-            "x": self.pos().x(),
-            "y": self.pos().y(),
-            "width": self.width(),
-            "height": self.height(),
+            "x": int(self.logical_rect.x()),
+            "y": int(self.logical_rect.y()),
+            "width": int(self.logical_rect.width()),
+            "height": int(self.logical_rect.height()),
             "rotation": self.rotation_angle,
             "svg_path": self.svg_path,
             "config": self.config

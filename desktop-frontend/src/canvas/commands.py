@@ -16,7 +16,10 @@ class AddCommand(QUndoCommand):
         super().__init__()
         self.canvas = canvas
         self.component = component
-        self.component.move(pos)
+        # Assuming pos is LOGICAL position passed from CanvasWidget
+        self.component.logical_rect.moveTo(pos.x(), pos.y())
+        if hasattr(self.canvas, "zoom_level"):
+            self.component.update_visuals(self.canvas.zoom_level)
         self.setText(f"Add {component.config.get('component', 'Component')}")
 
     def redo(self):
@@ -80,17 +83,23 @@ class MoveCommand(QUndoCommand):
     def __init__(self, component, old_pos, new_pos):
         super().__init__()
         self.component = component
-        self.old_pos = old_pos
-        self.new_pos = new_pos
+        self.old_pos = old_pos # Expecting LOGICAL pos
+        self.new_pos = new_pos # Expecting LOGICAL pos
         self.setText(f"Move {component.config.get('component', 'Component')}")
 
     def redo(self):
-        self.component.move(self.new_pos)
-        self.component.parentWidget().update()
+        self.component.logical_rect.moveTo(self.new_pos.x(), self.new_pos.y())
+        canvas = self.component.parent()
+        z = canvas.zoom_level if hasattr(canvas, "zoom_level") else 1.0
+        self.component.update_visuals(z)
+        canvas.update()
 
     def undo(self):
-        self.component.move(self.old_pos)
-        self.component.parentWidget().update()
+        self.component.logical_rect.moveTo(self.old_pos.x(), self.old_pos.y())
+        canvas = self.component.parent()
+        z = canvas.zoom_level if hasattr(canvas, "zoom_level") else 1.0
+        self.component.update_visuals(z)
+        canvas.update()
 
 
 # ---------------------- FILE OPERATIONS ----------------------
