@@ -38,6 +38,11 @@ def render_to_image(canvas, rect, scale=1.0):
     
     painter = QPainter(image)
     try:
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        painter.setRenderHint(QPainter.TextAntialiasing)
+        painter.setRenderHint(QPainter.HighQualityAntialiasing)
+        
         painter.scale(scale, scale)
         painter.translate(-rect.topLeft())
         
@@ -106,67 +111,97 @@ def draw_equipment_table(painter, canvas, page_rect, start_y):
 
 # ---------------------- EXPORT FUNCTIONS ----------------------
 def export_to_image(canvas, filename):
-    image = QImage(canvas.size(), QImage.Format_ARGB32)
-    image.fill(Qt.transparent)
-    painter = QPainter(image)
-    canvas.render(painter)
-    painter.end()
-    image.save(filename)
+    """Export canvas to high-quality image with proper rendering"""
+    # Use higher resolution for better quality
+    scale_factor = 3.0
+    
+    rect = get_content_rect(canvas)
+    image = render_to_image(canvas, rect, scale=scale_factor)
+    
+    # Save with maximum quality
+    image.save(filename, quality=100)
 
 def export_to_pdf(canvas, filename):
+    """Export canvas to high-quality PDF"""
     rect = get_content_rect(canvas)
-    image = render_to_image(canvas, rect)
     
-    # PDF Setup
-    printer = QPrinter(QPrinter.ScreenResolution)
+    # Use high resolution for PDF
+    scale_factor = 4.0
+    image = render_to_image(canvas, rect, scale=scale_factor)
+    
+    # PDF Setup with HighResolution mode
+    printer = QPrinter(QPrinter.HighResolution)
     printer.setOutputFormat(QPrinter.PdfFormat)
     printer.setOutputFileName(filename)
     
-    # Exact size PDF
-    mm_per_inch = 25.4; dpi = 96.0
-    s = rect.size(); w_mm = (s.width()/dpi)*mm_per_inch; h_mm = (s.height()/dpi)*mm_per_inch
+    # Calculate size in millimeters for proper scaling
+    mm_per_inch = 25.4
+    # Use printer's resolution for accurate conversion
+    dpi = printer.resolution()
+    
+    s = rect.size()
+    w_mm = (s.width() / dpi) * mm_per_inch
+    h_mm = (s.height() / dpi) * mm_per_inch
+    
     printer.setPageSize(QPageSize(QSizeF(w_mm, h_mm), QPageSize.Millimeter))
-    printer.setPageMargins(0,0,0,0, QPrinter.Millimeter)
+    printer.setPageMargins(0, 0, 0, 0, QPrinter.Millimeter)
     
     painter = QPainter(printer)
-    painter.drawImage(0, 0, image)
-    painter.end()
+    try:
+        # Enable high-quality rendering
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        painter.setRenderHint(QPainter.HighQualityAntialiasing)
+        
+        # Draw the high-res image to fill the page
+        target_rect = painter.viewport()
+        painter.drawImage(target_rect, image)
+    finally:
+        painter.end()
 
 def generate_report_pdf(canvas, filename):
+    """Generate multi-page PDF report with diagram and equipment list"""
     printer = QPrinter(QPrinter.ScreenResolution)
     printer.setOutputFormat(QPrinter.PdfFormat)
     printer.setOutputFileName(filename)
     printer.setPageSize(QPageSize(QPageSize.A4))
-    printer.setPageMargins(10,10,10,10, QPrinter.Millimeter)
+    printer.setPageMargins(10, 10, 10, 10, QPrinter.Millimeter)
     
     painter = QPainter(printer)
     try:
         # Page 1: Diagram
         rect = get_content_rect(canvas)
-        image = render_to_image(canvas, rect, scale=2.0) # High res
+        # Use higher scale for crisp rendering
+        image = render_to_image(canvas, rect, scale=4.0)
         
         page_rect = printer.pageRect(QPrinter.DevicePixel).toRect()
         
         # Title
-        f=painter.font(); f.setPointSize(16); f.setBold(True); painter.setFont(f)
-        painter.drawText(page_rect, Qt.AlignTop|Qt.AlignHCenter, "Process Flow Diagram")
+        f = painter.font()
+        f.setPointSize(16)
+        f.setBold(True)
+        painter.setFont(f)
+        painter.drawText(page_rect, Qt.AlignTop | Qt.AlignHCenter, "Process Flow Diagram")
         
         # Image placement
-        scaled = image.scaled(page_rect.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         y_pos = int(0.8 * printer.logicalDpiY())
-        
-        # Fit logic
         avail_h = page_rect.height() - y_pos - 20
-        if scaled.height() > avail_h:
-            scaled = scaled.scaled(QSize(page_rect.width(), avail_h), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        
+        # Scale with FastTransformation for high quality
+        scaled = image.scaled(
+            QSize(page_rect.width(), avail_h),
+            Qt.KeepAspectRatio,
+            Qt.FastTransformation
+        )
             
         x_pos = (page_rect.width() - scaled.width()) // 2
         painter.drawImage(x_pos, y_pos, scaled)
         
         # Page 2: Table
         printer.newPage()
-        f.setPointSize(14); painter.setFont(f)
-        painter.drawText(page_rect, Qt.AlignTop|Qt.AlignHCenter, "List of Equipment")
+        f.setPointSize(14)
+        painter.setFont(f)
+        painter.drawText(page_rect, Qt.AlignTop | Qt.AlignHCenter, "List of Equipment")
         
         draw_equipment_table(painter, canvas, page_rect, 80)
         
@@ -174,7 +209,7 @@ def generate_report_pdf(canvas, filename):
         painter.end()
 
 def export_to_excel(canvas, filename):
-    """Exports the list of equipment to an Excel file."""
+    """Exports the list of equipment to an Excel file with auto-width columns."""
     equipment_list = []
     
     # Logic similar to draw_equipment_table to extract data
@@ -204,8 +239,23 @@ def export_to_excel(canvas, filename):
     # Ensure columns are in order
     df = df[["Sr. No.", "Tag Number", "Equipment Description"]]
     
-    # Save to Excel
-    df.to_excel(filename, index=False)
+    # Save to Excel with auto-width columns
+    with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Equipment List')
+        
+        # Get workbook and worksheet objects
+        workbook = writer.book
+        worksheet = writer.sheets['Equipment List']
+        
+        # Auto-adjust column widths
+        for idx, col in enumerate(df.columns):
+            # Get the maximum length of data in each column
+            max_len = max(
+                df[col].astype(str).apply(len).max(),
+                len(str(col))
+            )
+            # Add some padding
+            worksheet.set_column(idx, idx, max_len + 2)
 
 # ---------------------- PFD SERIALIZATION ----------------------
 def save_to_pfd(canvas, filename):
@@ -238,17 +288,8 @@ def load_from_pfd(canvas, filename):
         for d in data.get("components", []):
             if not d.get("svg_path"): continue
             comp = ComponentWidget(d["svg_path"], canvas, config=d.get("config", {}))
-            # Load as Logical Rect
-            comp.logical_rect = QRectF(
-                d.get("x", 0), d.get("y", 0), 
-                d.get("width", 120), d.get("height", 100)
-            )
-            # Apply initial visual state based on current canvas zoom
-            if hasattr(canvas, "zoom_level"):
-                comp.update_visuals(canvas.zoom_level)
-            else:
-                comp.update_visuals(1.0)
-            
+            comp.move(d.get("x",0), d.get("y",0))
+            comp.resize(d.get("width",100), d.get("height",100))
             comp.rotation_angle = d.get("rotation", 0)
             comp.update(); comp.show()
             canvas.components.append(comp)
@@ -271,4 +312,3 @@ def load_from_pfd(canvas, filename):
     except Exception as e:
         print(f"Error loading PFD: {e}")
         return False
-
