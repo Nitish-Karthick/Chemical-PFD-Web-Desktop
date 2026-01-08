@@ -10,14 +10,14 @@ def draw_grid(painter, width, height, theme="light"):
         for y in range(0, height, grid_spacing):
             painter.drawPoint(x, y)
 
-def draw_connections(painter, connections, components):
+def draw_connections(painter, connections, components, theme="light", zoom=1.0):
     # Draw all finished connections
     for conn in connections:
         # Update path with Jump Logic
         conn.update_path(components, connections)
 
         # Render Connection (Line + Arrow + Jumps)
-        conn.paint(painter)
+        conn.paint(painter, theme=theme, zoom=zoom)
 
         # Draw Edit Handles if selected
         if conn.is_selected:
@@ -26,9 +26,10 @@ def draw_connections(painter, connections, components):
             for pt in conn.path:
                 painter.drawEllipse(pt, 4, 4)
 
-def draw_active_connection(painter, active_connection):
+def draw_active_connection(painter, active_connection, theme="light"):
     if active_connection:
-        painter.setPen(QPen(Qt.black, 2, Qt.DashLine))
+        color = Qt.white if theme == "dark" else Qt.black
+        painter.setPen(QPen(color, 2, Qt.DashLine))
         painter.setBrush(Qt.NoBrush)
         
         if not active_connection.painter_path.isEmpty():

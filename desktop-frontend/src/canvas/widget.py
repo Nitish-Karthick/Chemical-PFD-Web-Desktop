@@ -1,9 +1,9 @@
 import os
 from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import Qt, QPoint, QPointF, QRectF
+from PyQt5.QtCore import Qt, QPoint, QPointF, QRectF, QSize
 from PyQt5.QtWidgets import QWidget, QLabel, QUndoStack
-from PyQt5.QtWidgets import QWidget, QLabel, QUndoStack
-from PyQt5.QtGui import QPainter
+from PyQt5.QtWidgets import QWidget, QLabel, QUndoStack, QVBoxLayout, QHBoxLayout, QPushButton, QFrame, QSizePolicy
+from PyQt5.QtGui import QPainter, QColor, QPalette
 
 from src.connection import Connection
 from src.component_widget import ComponentWidget
@@ -46,11 +46,119 @@ class CanvasWidget(QWidget):
         self.component_config = resources.load_config(base_dir)
         self.label_data = resources.load_label_data(base_dir)
         self.base_dir = base_dir
+        
+        self.zoom_level = 1.0
+        self.logical_size =  QSize(3000, 2000)
+        self.setFixedSize(self.logical_size)
+
+        from src.theme_manager import theme_manager
+        theme_manager.theme_changed.connect(self.update_canvas_theme)
+        self.update_canvas_theme()
+    
+    def expand_to_contain(self, rect):
+        """Expand logical size if rect is outside current bounds."""
+        margin = 500 # Expansion chunk
+        new_w = self.logical_size.width()
+        new_h = self.logical_size.height()
+        expanded = False
+        
+        if rect.right() > new_w - 100:
+            new_w = max(new_w + margin, rect.right() + margin)
+            expanded = True
+            
+        if rect.bottom() > new_h - 100:
+            new_h = max(new_h + margin, rect.bottom() + margin)
+            expanded = True
+            
+        if expanded:
+            self.logical_size = QSize(int(new_w), int(new_h))
+            self.apply_zoom() # Re-applies size with zoom
+
+        
+
+
+    def apply_zoom(self):
+        """Apply the current zoom level to the canvas size and all components."""
+        # Resize the canvas surface
+        new_w = int(self.logical_size.width() * self.zoom_level)
+        new_h = int(self.logical_size.height() * self.zoom_level)
+        self.setFixedSize(new_w, new_h)
+        
+        # Update all components
+        for comp in self.components:
+            comp.update_visuals(self.zoom_level)
+            
+        self.update()
+
+    def zoom_in(self):
+        self.zoom_level *= 1.1
+        self.apply_zoom()
+
+    def zoom_out(self):
+        self.zoom_level /= 1.1
+        self.apply_zoom()
+        
+    def zoom_fit(self):
+        if not self.components:
+            return
+            
+        # Calculate bounding box of all LOGICAL rects
+        min_x, min_y = float('inf'), float('inf')
+        max_x, max_y = float('-inf'), float('-inf')
+        
+        for comp in self.components:
+            r = comp.logical_rect
+            min_x = min(min_x, r.left())
+            min_y = min(min_y, r.top())
+            max_x = max(max_x, r.right())
+            max_y = max(max_y, r.bottom())
+            
+        # Add some padding
+        padding = 50
+        content_w = (max_x - min_x) + (padding * 2)
+        content_h = (max_y - min_y) + (padding * 2)
+        
+        # Get viewport size (parent is scroll area's viewport usually, parent.parent is scrollarea)
+        viewport = self.parentWidget()
+        if not viewport: return
+        
+        view_w = viewport.width()
+        view_h = viewport.height()
+        
+        # Calculate zoom needed
+        zoom_w = view_w / content_w
+        zoom_h = view_h / content_h
+        
+        # Use valid min zoom
+        self.zoom_level = min(zoom_w, zoom_h)
+        
+        # Safety clamp: Fit shouldn't zoom in past 100% usually, or just slightly.
+        # User complained it's "too much zoomed into".
+        # Let's cap Fit at 1.0 (100%)
+        self.zoom_level = max(0.1, min(self.zoom_level, 1.0))
+        
+        self.apply_zoom()
 
     def update_canvas_theme(self):
+        from src.theme_manager import theme_manager
+        current_theme = theme_manager.current_theme
+        
         palette = self.palette()
-        palette.setColor(self.backgroundRole(), Qt.white)
+        if current_theme == "dark":
+            # Using Slate 900 #0f172a
+            color_hex = "#0f172a"
+            palette.setColor(self.backgroundRole(), QColor(color_hex))
+            self.setStyleSheet(f"QWidget#canvasArea {{ background-color: {color_hex}; }}")
+        else:
+            palette.setColor(self.backgroundRole(), Qt.white)
+            self.setStyleSheet("QWidget#canvasArea { background-color: white; }")
+            
         self.setPalette(palette)
+        
+        # Force repaint of all components to adapt to theme (e.g. background plates)
+        for comp in self.components:
+            comp.update()
+            
         self.update()
 
     # ---------------------- DRAG & DROP ----------------------
@@ -102,16 +210,25 @@ class CanvasWidget(QWidget):
         self.active_connection.current_pos = self.active_connection.get_start_pos()
         self.update()
 
+    def get_logical_pos(self, pos):
+        """Convert screen (visual) pos to logical pos."""
+        return QPointF(pos.x() / self.zoom_level, pos.y() / self.zoom_level)
+
     # ---------------------- SELECTION + CONNECTION LOGIC ----------------------
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.deselect_all()
+            
+            # Map click to logical for connection testing
+            logical_pos = self.get_logical_pos(event.pos())
 
             # Connection hit test
             hit_connection = None
             hit_index = -1
             for conn in self.connections:
-                idx = conn.hit_test(event.pos())
+                # CONNECTION HIT TEST uses LOGICAL coordinates
+                # Ensure connection class is updated or we pass logical logic
+                idx = conn.hit_test(logical_pos)
                 if idx != -1:
                     hit_connection = conn
                     hit_index = idx
@@ -121,7 +238,7 @@ class CanvasWidget(QWidget):
                 # Drag logic for connection
                 hit_connection.is_selected = True
                 self.drag_connection = hit_connection
-                self.drag_start_pos = event.pos()
+                self.drag_start_pos = logical_pos # Store LOGICAL start
 
                 best_param = "path_offset"
                 best_sensitivity = QPointF(0, 0)
@@ -180,12 +297,16 @@ class CanvasWidget(QWidget):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        logical_pos = self.get_logical_pos(event.pos())
+        
         if self.active_connection:
-            self.update_connection_drag(event.pos())
+            self.update_connection_drag(logical_pos) # Pass logical
+            # Don't call super() here because QWidget default doesn't care
+            # But sticky notes might? No, they are widgets.
             return super().mouseMoveEvent(event)
 
         if hasattr(self, "drag_connection") and self.drag_connection:
-            delta = event.pos() - self.drag_start_pos
+            delta = logical_pos - self.drag_start_pos
             sens_sq = self.drag_sensitivity.x()**2 + self.drag_sensitivity.y()**2
             
             if sens_sq > 0.001:
@@ -199,17 +320,18 @@ class CanvasWidget(QWidget):
         super().mouseMoveEvent(event)
 
     def update_connection_drag(self, pos):
+        # POS is in LOGICAL coordinates
         if not self.active_connection:
             return
 
         snap = False
         # Find closest grip
-        best_dist = 20.0 # Standard tolerance
+        best_dist = 20.0 # Standard tolerance (Logical)
         best_grip = None
 
         for comp in self.components:
-            # Quick bounding box check
-            if not comp.geometry().adjusted(-30, -30, 30, 30).contains(pos):
+            # Check bounding box (in logical)
+            if not comp.logical_rect.adjusted(-30, -30, 30, 30).contains(pos):
                 continue
             
             # Don't snap to start component
@@ -217,17 +339,21 @@ class CanvasWidget(QWidget):
                 continue
 
             grips = comp.get_grips()
-            content = comp.get_content_rect()
-            
-            # Use comp's own method if available or calculate logic here
-            # We used comp.get_grip_position(i) elsewhere, let's stick to manual calc for drag loop speed 
-            # OR use the helper we saw in Widget.py earlier? 
-            # No, Widget.py had manual calc. Let's stick to that but use get_grip_position for consistency if possible?
-            # Actually, comp.get_grip_position does the SVG mapping which is better.
-            
+            # Grip positions need to be mapped to logical!
+            # comp.get_grip_position returns coordinate relative to Widget (0,0) top left
+            # Widget top-left LOGICAL is comp.logical_rect.topLeft()
+            # So Global Logical Grip = comp.logical_rect.topLeft() + GripOffset
+             
             for i, _ in enumerate(grips):
-                # Calculate global-ish pos (parent relative)
-                center = comp.mapToParent(comp.get_grip_position(i))
+                # We need the logical grip position relative to component 
+                # Since get_grip_position relies on SVG rect which scales...
+                # Actually, comp.get_grip_position() returns pixel offsest at current size
+                # We need to un-scale it to get logical offset.
+                
+                visual_grip_pos = comp.get_grip_position(i) # Visual offset
+                logical_grip_offset = QPointF(visual_grip_pos.x() / self.zoom_level, visual_grip_pos.y() / self.zoom_level)
+                
+                center = comp.logical_rect.topLeft() + logical_grip_offset
                 
                 dist = (pos - center).manhattanLength()
                 if dist < best_dist:
@@ -241,13 +367,15 @@ class CanvasWidget(QWidget):
 
         if not snap:
             self.active_connection.clear_snap_target()
-            self.active_connection.current_pos = pos
+            self.active_connection.current_pos = pos 
 
         self.active_connection.update_path(self.components, self.connections)
         self.update()
 
     def mouseReleaseEvent(self, event):
-        self.handle_connection_release(event.pos())
+        # Handle release in LOGICAL coords
+        logical_pos = self.get_logical_pos(event.pos())
+        self.handle_connection_release(logical_pos)
         self.drag_connection = None
 
         if hasattr(self, 'drag_item') and self.drag_item:
@@ -312,9 +440,18 @@ class CanvasWidget(QWidget):
         qp = QPainter(self)
         qp.setRenderHint(QPainter.Antialiasing)
         
-        painter.draw_grid(qp, self.width(), self.height(), app_state.current_theme)
-        painter.draw_connections(qp, self.connections, self.components)
-        painter.draw_active_connection(qp, self.active_connection)
+        # Apply Zoom SCALE to painter
+        qp.scale(self.zoom_level, self.zoom_level) 
+        
+        # Calculate LOGICAL visible area
+        logical_w = int(self.width() / self.zoom_level)
+        logical_h = int(self.height() / self.zoom_level)
+        
+        painter.draw_grid(qp, logical_w, logical_h, app_state.current_theme)
+        
+        # Draws connections in logical coords!
+        painter.draw_connections(qp, self.connections, self.components, theme=app_state.current_theme, zoom=self.zoom_level)
+        painter.draw_active_connection(qp, self.active_connection, theme=app_state.current_theme)
 
     # ---------------------- COMPONENT CREATION ----------------------
     def create_component_command(self, text, pos, component_data=None):
@@ -353,14 +490,33 @@ class CanvasWidget(QWidget):
 
         if not svg:
             lbl = QLabel(label_text, self)
-            lbl.move(pos)
+            # Position at scaled pos
+            v_x = int(pos.x() * self.zoom_level)
+            v_y = int(pos.y() * self.zoom_level)
+            lbl.move(v_x, v_y)
             lbl.setStyleSheet("color:white; background:rgba(0,0,0,0.5); padding:4px; border-radius:4px;")
             lbl.show()
             lbl.adjustSize()
             return
 
         comp = ComponentWidget(svg, self, config=config)
-        cmd = AddCommand(self, comp, pos)
+        # Position incoming (which is visual/drop pos) to LOGICAL
+        # Note: dropEvent is in visual.
+        logical_pos = QPoint(int(pos.x() / self.zoom_level), int(pos.y() / self.zoom_level))
+        
+        # Update components logical rect
+        comp.logical_rect.moveTo(logical_pos.x(), logical_pos.y())
+        comp.update_visuals(self.zoom_level)
+
+        # Auto-Expand
+        self.expand_to_contain(comp.logical_rect)
+        
+        # Add Command uses LOGICAL pos?
+        # MoveCommand uses Visual? 
+        # CAUTION: Commands usually store what was passed.
+        # If we store logical, we should ensure MoveCommand respects it.
+        # Actually comp is already positioned. AddCommand just tracks it.
+        cmd = AddCommand(self, comp, logical_pos)
         self.undo_stack.push(cmd)
 
     # ---------------------- EXPORT ----------------------

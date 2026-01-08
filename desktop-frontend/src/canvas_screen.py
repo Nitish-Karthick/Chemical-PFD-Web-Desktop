@@ -1,7 +1,7 @@
 import os
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QColor, QBrush, QKeySequence
-from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QShortcut, QMdiSubWindow
+from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QShortcut, QMdiSubWindow, QSplitter
 from PyQt5.QtCore import Qt
 
 from src.canvas.widget import CanvasWidget
@@ -10,6 +10,55 @@ from src.theme import apply_theme_to_screen
 from src.navigation import slide_to_index
 import src.app_state as app_state
 from src.theme_manager import theme_manager
+
+class OverlayContainer(QWidget):
+    def __init__(self, canvas, scroll_area, parent=None):
+        super().__init__(parent)
+        self.canvas = canvas
+        self.scroll_area = scroll_area
+        
+        # Main Layout (Stacking)
+        layout = QtWidgets.QGridLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Layer 0: Content
+        layout.addWidget(self.scroll_area, 0, 0)
+        
+        # Layer 1: Toolbar (Bottom Right)
+        # We put toolbar directly in grid
+        self.toolbar_frame = QtWidgets.QFrame()
+        self.toolbar_frame.setStyleSheet("background-color: white; border: 1px solid #e2e8f0; border-radius: 8px;")
+        btn_layout = QtWidgets.QHBoxLayout(self.toolbar_frame)
+        btn_layout.setContentsMargins(5, 5, 5, 5)
+        
+        self.zoom_out_btn = QtWidgets.QPushButton("-")
+        self.zoom_out_btn.setFixedSize(30, 30)
+        self.zoom_out_btn.clicked.connect(self.canvas.zoom_out)
+        
+        self.zoom_fit_btn = QtWidgets.QPushButton("Fit")
+        self.zoom_fit_btn.setFixedSize(40, 30)
+        self.zoom_fit_btn.clicked.connect(self.canvas.zoom_fit)
+        
+        self.zoom_in_btn = QtWidgets.QPushButton("+")
+        self.zoom_in_btn.setFixedSize(30, 30)
+        self.zoom_in_btn.clicked.connect(self.canvas.zoom_in)
+        
+        btn_layout.addWidget(self.zoom_out_btn)
+        btn_layout.addWidget(self.zoom_fit_btn)
+        btn_layout.addWidget(self.zoom_in_btn)
+        
+        # Add to main, aligned (margin for offset)
+        layout.addWidget(self.toolbar_frame, 0, 0, Qt.AlignBottom | Qt.AlignRight)
+        
+        # Set margin for the toolbar itself so it's not flush
+        layout.setContentsMargins(0, 0, 20, 20) 
+        
+        # Reset contents margins for the scroll area? No, Grid handles it.
+        # But wait, setContentsMargins applies to the whole widget.
+        # We want invalidation? No.
+        # Better: Put scroll area at 0,0. Put Toolbar in a wrapper at 0,0 aligned.
+        
+
 
 class ImageSubWindow(QMdiSubWindow):
     def __init__(self, image_path, parent=None):
@@ -159,8 +208,16 @@ class PDFSubWindow(QMdiSubWindow):
         self.render_pages()
 
 class CanvasSubWindow(QMdiSubWindow):
+    def get_canvas(self):
+        w = self.widget()
+        if isinstance(w, OverlayContainer):
+            return w.canvas
+        if isinstance(w, QtWidgets.QScrollArea):
+            return w.widget()
+        return w
+
     def closeEvent(self, event):
-        canvas = self.widget()
+        canvas = self.get_canvas()
         if canvas and hasattr(canvas, "is_modified"): 
             from src.canvas.commands import handle_close_event
             handle_close_event(canvas, event)
@@ -191,17 +248,30 @@ class CanvasScreen(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        self.library = ComponentLibrary(self)
-        self.library.setMinimumWidth(280)
-        main_layout.addWidget(self.library)
+        # Splitter for Resizable Layout (Sidebar | Canvas)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setHandleWidth(2)
+        splitter.setStyleSheet("QSplitter::handle { background-color: #e2e8f0; }")
 
+        self.library = ComponentLibrary(self)
+        self.library.setMinimumWidth(200) # Reduced min width to allow more flex
+        # self.library.setMinimumWidth(280) 
+        
         self.mdi_area = QtWidgets.QMdiArea()
         self.mdi_area.setViewMode(QtWidgets.QMdiArea.TabbedView)
         self.mdi_area.setTabsClosable(True)
         self.mdi_area.setTabsMovable(True)
         self.mdi_area.setBackground(QBrush(QColor("#505050")))
+
+        # Add to Splitter
+        splitter.addWidget(self.library)
+        splitter.addWidget(self.mdi_area)
         
-        main_layout.addWidget(self.mdi_area)
+        # Set Stretch: Library (0, keeps size), Canvas (1, takes rest)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        
+        main_layout.addWidget(splitter)
 
         # Connect to theme manager for MDI area updates
         theme_manager.theme_changed.connect(self.apply_mdi_theme)
@@ -313,8 +383,18 @@ class CanvasScreen(QMainWindow):
         canvas = CanvasWidget(self)
         canvas.update_canvas_theme()
         
+        # Scroll Area Wrapper
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidget(canvas)
+        scroll.setWidgetResizable(False) # Let canvas dictate size
+        scroll.setAlignment(Qt.AlignCenter)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        # Wrap in Overlay
+        overlay = OverlayContainer(canvas, scroll)
+
         sub = CanvasSubWindow()
-        sub.setWidget(canvas)
+        sub.setWidget(overlay)
         sub.setAttribute(Qt.WA_DeleteOnClose)
         self.mdi_area.addSubWindow(sub)
         sub.setWindowTitle("New Project")
@@ -346,25 +426,25 @@ class CanvasScreen(QMainWindow):
 
     def on_delete_component(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if active_sub and isinstance(active_sub.widget(), CanvasWidget):
-            active_sub.widget().delete_selected_components()
+        if active_sub and isinstance(active_sub, CanvasSubWindow):
+            active_sub.get_canvas().delete_selected_components()
 
     def on_undo(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if active_sub and isinstance(active_sub.widget(), CanvasWidget):
-            active_sub.widget().undo_stack.undo()
+        if active_sub and isinstance(active_sub, CanvasSubWindow):
+            active_sub.get_canvas().undo_stack.undo()
 
     def on_redo(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if active_sub and isinstance(active_sub.widget(), CanvasWidget):
-            active_sub.widget().undo_stack.redo()
+        if active_sub and isinstance(active_sub, CanvasSubWindow):
+            active_sub.get_canvas().undo_stack.redo()
 
     def on_generate_image(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+        if not active_sub or not isinstance(active_sub, CanvasSubWindow):
             return
             
-        canvas = active_sub.widget()
+        canvas = active_sub.get_canvas()
         options = QtWidgets.QFileDialog.Options()
         filename, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Generate Image", "", 
@@ -377,10 +457,10 @@ class CanvasScreen(QMainWindow):
 
     def on_generate_excel(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+        if not active_sub or not isinstance(active_sub, CanvasSubWindow):
             return
             
-        canvas = active_sub.widget()
+        canvas = active_sub.get_canvas()
         options = QtWidgets.QFileDialog.Options()
         filename, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Generate Excel Report", "", 
@@ -399,10 +479,10 @@ class CanvasScreen(QMainWindow):
             
     def on_generate_report(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+        if not active_sub or not isinstance(active_sub, CanvasSubWindow):
             return
             
-        canvas = active_sub.widget()
+        canvas = active_sub.get_canvas()
         options = QtWidgets.QFileDialog.Options()
         filename, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Generate PDF Report", "", 
@@ -421,11 +501,11 @@ class CanvasScreen(QMainWindow):
 
     def on_save_file(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+        if not active_sub or not isinstance(active_sub, CanvasSubWindow):
             QtWidgets.QMessageBox.information(self, "Information", "No file to save.")
             return
             
-        canvas = active_sub.widget()
+        canvas = active_sub.get_canvas()
         # If file already has a path, save directly
         if canvas.file_path:
             try:
@@ -440,11 +520,11 @@ class CanvasScreen(QMainWindow):
 
     def on_save_as_file(self):
         active_sub = self.mdi_area.currentSubWindow()
-        if not active_sub or not isinstance(active_sub.widget(), CanvasWidget):
+        if not active_sub or not isinstance(active_sub, CanvasSubWindow):
              QtWidgets.QMessageBox.information(self, "Information", "No file to save.")
              return
              
-        canvas = active_sub.widget()
+        canvas = active_sub.get_canvas()
         options = QtWidgets.QFileDialog.Options()
         filename, filter_type = QtWidgets.QFileDialog.getSaveFileName(
             self, "Save Project As", "", 
@@ -493,17 +573,28 @@ class CanvasScreen(QMainWindow):
         # PFD File -> Canvas
         if filename.lower().endswith(".pfd"):
             self.on_new_project() # Creates new tab/canvas
-            active_sub = self.mdi_area.currentSubWindow()
-            canvas = active_sub.widget()
-            try:
-                if canvas.open_file(filename):
-                    active_sub.setWindowTitle(f"Canvas - {os.path.basename(filename)}")
-                else:
-                    QtWidgets.QMessageBox.warning(self, "Error", "Failed to load file. It might be corrupted or incompatible.")
+            
+            # activeSubWindow might return None immediately after creation depending on focus
+            active_sub = self.mdi_area.activeSubWindow()
+            if not active_sub:
+                # Fallback: Get the last added subwindow
+                subs = self.mdi_area.subWindowList()
+                if subs:
+                    active_sub = subs[-1]
+            
+            if active_sub:
+                canvas = active_sub.get_canvas()
+                try:
+                    if canvas.open_file(filename):
+                        active_sub.setWindowTitle(f"Canvas - {os.path.basename(filename)}")
+                    else:
+                        QtWidgets.QMessageBox.warning(self, "Error", "Failed to load file. It might be corrupted or incompatible.")
+                        active_sub.close()
+                except Exception as e:
+                    QtWidgets.QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
                     active_sub.close()
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(self, "Error", f"Failed to open file:\n{str(e)}")
-                active_sub.close()
+            else:
+                 QtWidgets.QMessageBox.critical(self, "Error", "Failed to create new project window.")
 
         # Image File -> Image Viewer Tab
         elif filename.lower().endswith((".png", ".jpg", ".jpeg")):

@@ -22,44 +22,78 @@ import { useNavigate } from "react-router-dom";
 import { useState, useMemo, useEffect } from "react";
 import { CiFilter } from "react-icons/ci";
 import { MdEdit, MdDelete } from "react-icons/md";
+
 import { NewProjectModal } from "@/components/NewProjectModal";
+// import {
+//   getProjects,
+//   createProject,
+//   deleteProject,
+//   saveProject,
+//   SavedProject,
+// } from "@/utils/projectStorage";
 import {
-  getProjects,
+  fetchProjects,
   createProject,
   deleteProject,
-  saveProject,
-  type SavedProject
-} from "@/utils/projectStorage";
+  updateProjectMeta,
+} from "@/api/projectApi";
+import { SavedProject } from "@/utils/projectStorage";
 
+export interface Project {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  canvas_state?: {
+    items?: any[];
+  };
+}
 export default function Dashboard() {
   const navigate = useNavigate();
 
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [sizeFilter, setSizeFilter] = useState("all");
-  const [projects, setProjects] = useState<SavedProject[]>([]);
+  const [projects, setProjects] = useState<SavedProject[]>(() => []);
+
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-  const [editingProject, setEditingProject] = useState<SavedProject | null>(null);
-  const [deletingProject, setDeletingProject] = useState<SavedProject | null>(null);
+  const [editingProject, setEditingProject] = useState<SavedProject | null>(
+    null,
+  );
+  const [deletingProject, setDeletingProject] = useState<SavedProject | null>(
+    null,
+  );
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
+  // useEffect(() => {
+  //   const loadedProjects = getProjects();
+
+  //   setProjects(Array.isArray(loadedProjects) ? loadedProjects : []);
+  // }, []);
+
   // Load projects from localStorage on mount
-  useEffect(() => {
-    const loadedProjects = getProjects();
-    setProjects(loadedProjects);
-  }, []);
+  // useEffect(() => {
+  //   const loadedProjects = getProjects();
 
-  const handleCreateNewProject = (name: string, description: string) => {
-    // Create project in localStorage
-    const newProject = createProject(name, description || null);
+  //   setProjects(loadedProjects);
+  // }, []);
 
-    // Update local state
-    setProjects(prev => [...prev, newProject]);
+  // const handleCreateNewProject = (name: string, description: string) => {
+  //   // Create project in localStorage
+  //   const newProject = createProject(name, des  // useEffect(() => {
+  //   const loadedProjects = getProjects();
 
-    // Navigate to editor
-    navigate(`/editor/${newProject.id}`);
-  };
+  //   setProjects(loadedProjects);
+  // }, []);cription || null);
+
+  //   // Update local state
+  //   setProjects((prev) => [...prev, newProject]);
+
+  //   // Navigate to editor
+  //   navigate(`/editor/${newProject.id}`);
+  // };
 
   const handleEditProject = (project: SavedProject) => {
     setEditingProject(project);
@@ -67,39 +101,43 @@ export default function Dashboard() {
     setEditDescription(project.description || "");
   };
 
-  const handleSaveEdit = () => {
-    if (!editingProject) return;
+  // const handleSaveEdit = () => {
+  //   if (!editingProject) return;
 
-    const updatedProject = {
-      ...editingProject,
-      name: editName,
-      description: editDescription || null,
-    };
+  //   const updatedProject = {
+  //     ...editingProject,
+  //     name: editName,
+  //     description: editDescription || null,
+  //   };
 
-    saveProject(updatedProject);
-    setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-    setEditingProject(null);
-  };
+  //   saveProject(updatedProject);
+  //   setProjects((prev) =>
+  //     prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)),
+  //   );
+  //   setEditingProject(null);
+  // };
 
   const handleDeleteProject = (project: SavedProject) => {
     setDeletingProject(project);
   };
 
-  const confirmDelete = () => {
-    if (!deletingProject) return;
+  // const confirmDelete = () => {
+  //   if (!deletingProject) return;
 
-    deleteProject(deletingProject.id);
-    setProjects(prev => prev.filter(p => p.id !== deletingProject.id));
-    setDeletingProject(null);
-  };
+  //   deleteProject(deletingProject.id);
+  //   setProjects((prev) => prev.filter((p) => p.id !== deletingProject.id));
+  //   setDeletingProject(null);
+  // };
 
   const filteredProjects = useMemo(() => {
     let list = [...projects];
 
     if (search.trim() !== "") {
-      list = list.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          (p.description &&
+            p.description.toLowerCase().includes(search.toLowerCase())),
       );
     }
 
@@ -107,8 +145,9 @@ export default function Dashboard() {
       list.sort((a, b) => a.name.localeCompare(b.name));
     } else {
       // Sort by most recent (updated_at)
-      list.sort((a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      list.sort(
+        (a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
       );
     }
 
@@ -116,6 +155,7 @@ export default function Dashboard() {
     if (sizeFilter !== "all") {
       list = list.filter((p) => {
         const itemCount = p.canvas_state?.items?.length || 0;
+
         if (sizeFilter === "small") return itemCount < 5;
         if (sizeFilter === "medium") return itemCount >= 5 && itemCount < 15;
         if (sizeFilter === "large") return itemCount >= 15;
@@ -137,9 +177,9 @@ export default function Dashboard() {
     const diffDays = Math.floor(diffHours / 24);
 
     if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
 
     return date.toLocaleDateString();
   };
@@ -147,9 +187,63 @@ export default function Dashboard() {
   // Get project status based on item count
   const getProjectStatus = (project: SavedProject) => {
     const itemCount = project.canvas_state?.items?.length || 0;
+
     if (itemCount === 0) return "Draft";
     if (itemCount < 10) return "In Progress";
+
     return "Complete";
+  };
+
+useEffect(() => {
+  fetchProjects()
+    .then((data) => {
+      if (Array.isArray(data)) {
+        setProjects(data);
+      } else if (Array.isArray(data?.projects)) {
+        setProjects(data.projects);
+      } else {
+        console.error("Invalid projects API response:", data);
+        setProjects([]);
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to fetch projects:", err);
+      setProjects([]);
+    });
+}, []);
+
+
+  const handleCreateNewProject = async (name: string, description: string) => {
+    const project = await createProject(name, description || null);
+
+    setProjects((prev) => [...prev, project]);
+    navigate(`/editor/${project.id}`);
+  };
+  const handleSaveEdit = async () => {
+    if (!editingProject) return;
+
+    await updateProjectMeta(editingProject.id, {
+      name: editName,
+      description: editDescription || null,
+    });
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === editingProject.id
+          ? { ...p, name: editName, description: editDescription }
+          : p,
+      ),
+    );
+
+    setEditingProject(null);
+  };
+  const confirmDelete = async () => {
+    if (!deletingProject) return;
+
+    await deleteProject(deletingProject.id);
+    setProjects((prev) => prev.filter((p) => p.id !== deletingProject.id));
+
+    setDeletingProject(null);
   };
 
   return (
@@ -160,10 +254,7 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold">My Projects</h1>
           <p className="text-gray-500">Manage your PFD diagrams</p>
         </div>
-        <Button
-          color="primary"
-          onPress={() => setShowNewProjectModal(true)}
-        >
+        <Button color="primary" onPress={() => setShowNewProjectModal(true)}>
           + New Diagram
         </Button>
       </div>
@@ -262,7 +353,7 @@ export default function Dashboard() {
         <div className="text-center py-16">
           <div className="text-6xl mb-4">📄</div>
           <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            {projects.length === 0 ? "No projects yet" : "No projects found"}
+            {projects.length === 0 ? "No projects yet" : "No projects for search result"}
           </h2>
           <p className="text-gray-500 mb-6">
             {projects.length === 0
@@ -296,21 +387,24 @@ export default function Dashboard() {
                     Edited {getRelativeTime(proj.updated_at)}
                   </p>
                 </div>
-                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Button
                     isIconOnly
+                    className="text-gray-600 hover:text-blue-600 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
                     size="sm"
                     variant="light"
-                    className="text-gray-600 hover:text-blue-600 hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
                     onPress={() => handleEditProject(proj)}
                   >
                     <MdEdit size={18} />
                   </Button>
                   <Button
                     isIconOnly
+                    className="text-gray-600 hover:text-red-600 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                     size="sm"
                     variant="light"
-                    className="text-gray-600 hover:text-red-600 hover:bg-red-100/50 dark:hover:bg-red-900/30"
                     onPress={() => handleDeleteProject(proj)}
                   >
                     <MdDelete size={18} />
@@ -325,7 +419,11 @@ export default function Dashboard() {
               </CardBody>
               <CardFooter className="flex justify-between">
                 <Chip
-                  color={getProjectStatus(proj) === "Complete" ? "success" : "warning"}
+                  color={
+                    getProjectStatus(proj) === "Complete"
+                      ? "success"
+                      : "warning"
+                  }
                   size="sm"
                   variant="flat"
                 >
@@ -350,11 +448,13 @@ export default function Dashboard() {
       {/* Edit Project Modal */}
       <Modal
         isOpen={!!editingProject}
-        onClose={() => setEditingProject(null)}
         placement="center"
+        onClose={() => setEditingProject(null)}
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">Edit Project</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            Edit Project
+          </ModalHeader>
           <ModalBody>
             <Input
               autoFocus
@@ -388,27 +488,28 @@ export default function Dashboard() {
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={!!deletingProject}
-        onClose={() => setDeletingProject(null)}
         placement="center"
+        onClose={() => setDeletingProject(null)}
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">Delete Project</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            Delete Project
+          </ModalHeader>
           <ModalBody>
             <p>
-              Are you sure you want to delete <strong>{deletingProject?.name}</strong>?
+              Are you sure you want to delete{" "}
+              <strong>{deletingProject?.name}</strong>?
             </p>
             <p className="text-sm text-gray-500">
-              This action cannot be undone. All diagram data will be permanently removed.
+              This action cannot be undone. All diagram data will be permanently
+              removed.
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={() => setDeletingProject(null)}>
               Cancel
             </Button>
-            <Button
-              color="danger"
-              onPress={confirmDelete}
-            >
+            <Button color="danger" onPress={confirmDelete}>
               Delete Project
             </Button>
           </ModalFooter>
