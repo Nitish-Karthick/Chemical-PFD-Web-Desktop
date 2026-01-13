@@ -55,41 +55,64 @@ class LoginView(TokenObtainPairView):
 class MyTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
 class ComponentListView(generics.ListCreateAPIView):
-    queryset = Component.objects.all()
     serializer_class = ComponentSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     ordering_fields = ['s_no', 'name', 'legend']
     ordering = ['s_no']
 
+    def get_queryset(self):
+        # Filter components by the authenticated user
+        return Component.objects.filter(created_by=self.request.user)
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
+        serializer = self.get_serializer(queryset, many=True, context={'request': request})
         return Response({"components": serializer.data}, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        component = serializer.save()
+        # Auto-assign the authenticated user as creator
+        component = serializer.save(created_by=request.user)
 
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED
         )
 
-class ComponentDetailView(generics.RetrieveAPIView):
-    queryset = Component.objects.all()
+class ComponentDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ComponentSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
     lookup_field = 'id'
+
+    def get_queryset(self):
+        # Users can only access their own components
+        return Component.objects.filter(created_by=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return Response({"message": "Component deleted successfully"}, status=status.HTTP_200_OK)
 
 
 class ComponentByNameView(generics.RetrieveAPIView):
-    queryset = Component.objects.all()
     serializer_class = ComponentSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     lookup_field = 'name'
+
+    def get_queryset(self):
+        return Component.objects.filter(created_by=self.request.user)
 class ProjectListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer

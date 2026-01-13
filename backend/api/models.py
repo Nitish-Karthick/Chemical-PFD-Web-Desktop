@@ -12,14 +12,16 @@ class Project(models.Model):
 
 class Component(models.Model):
     s_no = models.CharField(max_length=10, unique=True)
-    parent = models.CharField(max_length=100)
+    parent = models.CharField(max_length=100)  # Category name
     name = models.CharField(max_length=100)
-    legend = models.CharField(max_length=100)
-    suffix = models.CharField(max_length=10)
+    legend = models.CharField(max_length=100, blank=True)
+    suffix = models.CharField(max_length=10, blank=True)
     object = models.CharField(max_length=100)
-    svg = models.FileField(upload_to='components/')
-    png = models.ImageField(upload_to='components/')
+    svg = models.FileField(upload_to='components/', null=True, blank=True)
+    png = models.ImageField(upload_to='components/', null=True, blank=True)
     grips = models.JSONField(default=list)
+    created_by = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
         return self.name

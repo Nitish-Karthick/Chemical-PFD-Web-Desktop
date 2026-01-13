@@ -12,9 +12,11 @@ urlpatterns = [
 
     # Component endpoints
     path('components/', views.ComponentListView.as_view(), name='component-list'),
+    path('components/<int:id>/', views.ComponentDetailView.as_view(), name='component-detail'),
 
   
     # Project endpoints
     path('project/', views.ProjectListCreateView.as_view(), name='project-list'),
     path('project/<int:id>/', views.ProjectDetailView.as_view(), name='project-detail'),
   ]
+
