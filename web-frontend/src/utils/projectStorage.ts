@@ -168,49 +168,50 @@ export function createProject(name: string, description: string | null = null): 
 /**
  * Convert zustand CanvasState to backend format
  * This helper maps the local editor state to backend-compatible format
- */export const convertToBackendFormat = (
-  projectId: number,
-  items: CanvasItem[],
-  connections: Connection[],
-  sequenceCounter: number
-) => {
-  console.log("Converting items to backend format..."); // Debug
+ */
+export function convertToBackendFormat(
+    projectId: number,
+    localItems: any[],
+    localConnections: any[],
+    sequenceCounter: number
+): CanvasState {
+    const items: BackendCanvasItem[] = localItems.map(item => ({
+        id: item.id,
+        project: projectId,
+        component_id: item.component_id,
+        label: item.label || '',
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height,
+        rotation: item.rotation || 0,
+        scaleX: item.scaleX || 1,
+        scaleY: item.scaleY || 1,
+        sequence: item.sequence,
+        // Include component metadata
+        s_no: item.s_no,
+        parent: item.parent,
+        name: item.name,
+        svg: item.svg,
+        png: item.png,
+        object: item.object,
+        legend: item.legend,
+        suffix: item.suffix,
+        grips: item.grips,
+    }));
 
-  const safeItems = items.map(item => {
-    const backendItem = {
-      id: item.id,
-      component: {
-        id: item.component_id || item.id,  // Use frontend ID
-        name: item.name || item.object || "Component"
-      },
-      label: item.label || "",
-      x: item.x,
-      y: item.y,
-      width: item.width,
-      height: item.height,
-      rotation: item.rotation || 0,
-      scaleX: item.scaleX || 1,
-      scaleY: item.scaleY || 1,
-      sequence: item.sequence || 0,
+    const connections: BackendConnection[] = localConnections.map(conn => ({
+        id: conn.id,
+        sourceItemId: conn.sourceItemId,
+        sourceGripIndex: conn.sourceGripIndex,
+        targetItemId: conn.targetItemId,
+        targetGripIndex: conn.targetGripIndex,
+        waypoints: conn.waypoints || [],
+    }));
+
+    return {
+        items,
+        connections,
+        sequence_counter: sequenceCounter,
     };
-    
-    console.log("Converted item:", backendItem); // Debug
-    
-    return backendItem;
-  });
-
-  const safeConnections = (connections || []).map(conn => ({
-    id: conn.id,
-    sourceItemId: conn.sourceItemId,
-    sourceGripIndex: conn.sourceGripIndex,
-    targetItemId: conn.targetItemId,
-    targetGripIndex: conn.targetGripIndex,
-    waypoints: conn.waypoints || []
-  }));
-
-  return {
-    items: safeItems,
-    connections: safeConnections,
-    sequence_counter: sequenceCounter || 0,
-  };
-};
+}
