@@ -196,64 +196,43 @@ def export_to_pdf(canvas, filename):
             canvas.apply_zoom()
 
 def generate_report_pdf(canvas, filename):
-    """Generate multi-page PDF report with diagram and equipment list"""
-    printer = QPrinter(QPrinter.ScreenResolution)
-    printer.setOutputFormat(QPrinter.PdfFormat)
-    printer.setOutputFileName(filename)
-    printer.setPageSize(QPageSize(QPageSize.A4))
-    printer.setPageMargins(10, 10, 10, 10, QPrinter.Millimeter)
-    
-    painter = QPainter(printer)
+    """Generate professional PDF report using ReportLab"""
     try:
-        # Page 1: Diagram
+        from src.reports.generator import PDFReportGenerator
+    except ImportError:
+        print("ReportLab not found. Please install it: pip install reportlab")
+        return
+
+    # Extract Data
+    data = []
+    
+    # Sort components by tag for cleaner report
+    sorted_components = sorted(canvas.components, key=lambda c: c.config.get("default_label", ""))
+    
+    for comp in sorted_components:
+        # Extract basic fields
+        tag = comp.config.get("default_label", "")
+        name = comp.config.get("name", "")
+        obj_type = comp.config.get("object", "")
         
-        # Reset Zoom for consistency
-        old_z = getattr(canvas, 'zoom_level', 1.0)
-        if old_z != 1.0:
-            canvas.zoom_level = 1.0
-            canvas.apply_zoom()
             
-        try:
-            rect = get_content_rect(canvas)
-            image = render_to_image(canvas, rect, scale=4.0)
-        finally:
-            if old_z != 1.0:
-                canvas.zoom_level = old_z
-                canvas.apply_zoom()
-        
-        page_rect = printer.pageRect(QPrinter.DevicePixel).toRect()
-        
-        # Title
-        f = painter.font()
-        f.setPointSize(16)
-        f.setBold(True)
-        painter.setFont(f)
-        painter.drawText(page_rect, Qt.AlignTop | Qt.AlignHCenter, "Process Flow Diagram")
-        
-        # Image placement
-        y_pos = int(0.8 * printer.logicalDpiY())
-        avail_h = page_rect.height() - y_pos - 20
-        
-        # Scale with FastTransformation for high quality
-        scaled = image.scaled(
-            QSize(page_rect.width(), avail_h),
-            Qt.KeepAspectRatio,
-            Qt.FastTransformation
-        )
+        # FORCE "no description" for all components per user request
+        name = "no description"
             
-        x_pos = (page_rect.width() - scaled.width()) // 2
-        painter.drawImage(x_pos, y_pos, scaled)
+        # Fallback for Type if empty (use name or generic)
+        if not obj_type:
+            obj_type = name if name else "Equipment"
+            
+        data.append({
+            'tag': tag,
+            'type': obj_type,
+            'description': name
+        })
         
-        # Page 2: Table
-        printer.newPage()
-        f.setPointSize(14)
-        painter.setFont(f)
-        painter.drawText(page_rect, Qt.AlignTop | Qt.AlignHCenter, "List of Equipment")
-        
-        draw_equipment_table(painter, canvas, page_rect, 80)
-        
-    finally:
-        painter.end()
+    # Generate
+    generator = PDFReportGenerator(filename)
+    generator.generate(data)
+    print(f"Report generated at {filename}")
 
 def export_to_excel(canvas, filename):
     """Exports the list of equipment to an Excel file with auto-width columns."""
