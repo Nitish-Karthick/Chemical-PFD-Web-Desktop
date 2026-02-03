@@ -121,7 +121,7 @@
     ]
   },
   {
-    "component": "One Cell Fired Heater",
+    "component": "One Cell Fired Heater, Furnace",
     "category": "Furnaces and Boilers",
     "default_label": "H-03",
     "grips": [
@@ -134,7 +134,7 @@
     ]
   },
   {
-    "component": "Two Cell Fired Heater",
+    "component": "Two Cell Fired Heater, Furnace",
     "category": "Furnaces and Boilers",
     "default_label": "H-04",
     "grips": [
@@ -412,6 +412,15 @@
     "component": "Float Valve",
     "category": "Valves",
     "default_label": "VLV-03",
+    "grips": [
+      { "x": 0, "y": 50, "side": "left" },
+      { "x": 100, "y": 50, "side": "right" }
+    ]
+  },
+  {
+    "component": "Globe Valve",
+    "category": "Valves",
+    "default_label": "VLV-04",
     "grips": [
       { "x": 0, "y": 50, "side": "left" },
       { "x": 100, "y": 50, "side": "right" }

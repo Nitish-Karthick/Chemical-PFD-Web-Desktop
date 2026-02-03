@@ -143,7 +143,7 @@ export const CanvasItemImage = ({
       {(isSelected || isDrawingConnection) &&
         item.grips?.map((grip, index) => {
           const gripX = item.x + (grip.x / 100) * item.width;
-          const gripY = item.y + (grip.y / 100) * item.height;
+          const gripY = item.y + ((100 - grip.y) / 100) * item.height;
 
           const isHovered =
             hoveredGrip?.itemId === item.id && hoveredGrip?.gripIndex === index;

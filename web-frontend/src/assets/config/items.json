@@ -67,7 +67,7 @@
             "args": []
         },
         "One Cell Fired Heater, Furnace": {
-            "name": "One Cell Fired Heater",
+            "name": "One Cell Fired Heater, Furnace",
             "icon": "./assets/toolbar/Furnaces and Boilers/One Cell Fired Heater, Furnace.png",
             "svg": "./assets/svg/Furnaces and Boilers/One Cell Fired Heater, Furnace.svg",
             "class": "Furnaces and Boilers",
@@ -75,7 +75,7 @@
             "args": []
         },
         "Two Cell Fired Heater, Furnace": {
-            "name": "Two Cell Fired Heater",
+            "name": "Two Cell Fired Heater, Furnace",
             "icon": "./assets/toolbar/Furnaces and Boilers/Two Cell Fired Heater, Furnace.png",
             "svg": "./assets/svg/Furnaces and Boilers/Two Cell Fired Heater, Furnace.svg",
             "class": "Furnaces and Boilers",
@@ -84,16 +84,14 @@
         }
     },
     "Heating or Cooling Arrangements": {
-        "905Exchanger": {
-            "name": "Exchanger",
+        "905 Exchanger": {
             "icon": "./assets/toolbar/Heating or Cooling Arrangements/905Exchanger.png",
             "svg": "./assets/svg/Heating or Cooling Arrangements/905Exchanger.svg",
             "class": "Heating or Cooling Arrangements",
             "object": "Exchanger905",
             "args": []
         },
-        "907Kettle Reboiler": {
-            "name": "Kettle Reboiler",
+        "907 Kettle Reboiler": {
             "icon": "./assets/toolbar/Heating or Cooling Arrangements/907Kettle Reboiler.png",
             "svg": "./assets/svg/Heating or Cooling Arrangements/907Kettle Reboiler.svg",
             "class": "Heating or Cooling Arrangements",
@@ -221,7 +219,7 @@
             "args": []
         },
         "Ejector(Vapor Service)": {
-            "name": "EjectorVapor Service",
+            "name": "Ejector(Vapor Service)",
             "icon": "./assets/toolbar/Pumps/Ejector(Vapor Service).png",
             "svg": "./assets/svg/Pumps/Ejector(Vapor Service).svg",
             "class": "Pumps",
@@ -305,11 +303,35 @@
             "class": "Valves",
             "object": "GateValve",
             "args": []
+        },
+        "Butterfly Valve": {
+            "name": "Butterfly Valve",
+            "icon": "./assets/toolbar/Valves/Butterfly Valve.png",
+            "svg": "./assets/svg/Valves/Butterfly Valve.svg",
+            "class": "Valves",
+            "object": "ButterflyValve",
+            "args": []
+        },
+        "Float Valve": {
+            "name": "Float Valve",
+            "icon": "./assets/toolbar/Valves/Float Valve.png",
+            "svg": "./assets/svg/Valves/Float Valve.svg",
+            "class": "Valves",
+            "object": "FloatValve",
+            "args": []
+        },
+        "Globe Valve": {
+            "name": "Globe Valve",
+            "icon": "./assets/toolbar/Valves/Globe Valve.png",
+            "svg": "./assets/svg/Valves/Globe Valve.svg",
+            "class": "Valves",
+            "object": "GlobeValve",
+            "args": []
         }
     },
     "Dryers": {
-        "Continuos Dryer": {
-            "name": "Continuos Dryer",
+        "Continuous Dryer": {
+            "name": "Continuous Dryer",
             "icon": "./assets/toolbar/Dryers/Continuous Dryer.png",
             "svg": "./assets/svg/Dryers/Continuous Dryer.svg",
             "class": "Dryers",

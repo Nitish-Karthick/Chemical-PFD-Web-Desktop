@@ -145,7 +145,7 @@ export default function Components() {
 
     const newGrips = [...grips];
 
-    newGrips[activeGripIndex] = { x: clampedX, y: clampedY, side };
+    newGrips[activeGripIndex] = { x: clampedX, y: 100 - clampedY, side };
     setGrips(newGrips);
 
     // Auto-advance
@@ -503,7 +503,7 @@ export default function Components() {
                                                             `}
                               style={{
                                 left: `${grip.x}%`,
-                                top: `${grip.y}%`,
+                                top: `${100 - Number(grip.y)}%`,
                               }}
                               // Stop propagation
                               onClick={(e) => {

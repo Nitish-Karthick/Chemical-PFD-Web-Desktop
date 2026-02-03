@@ -19,7 +19,7 @@ const getGripPosition = (item: CanvasItem, gripIndex: number): Point | null => {
   if (!item.grips || gripIndex >= item.grips.length) return null;
   const grip = item.grips[gripIndex];
   const x = item.x + (grip.x / 100) * item.width;
-  const y = item.y + (grip.y / 100) * item.height;
+  const y = item.y + ((100 - grip.y) / 100) * item.height;
 
   return { x, y };
 };
