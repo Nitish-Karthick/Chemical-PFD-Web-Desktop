@@ -1045,6 +1045,17 @@ export default function Editor() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
 
+      // Check if target is an input field
+      const target = e.target as HTMLElement;
+      if (
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable) &&
+        key !== "escape" // Optional: let Escape still unfocus inputs
+      ) {
+        return;
+      }
+
       for (const shortcut of shortcuts) {
         const matchesKey =
           key === shortcut.key ||
@@ -1350,10 +1361,10 @@ export default function Editor() {
           setTempConnection((prev: any) =>
             prev
               ? {
-                  ...prev,
-                  currentX: pointer.x,
-                  currentY: pointer.y,
-                }
+                ...prev,
+                currentX: pointer.x,
+                currentY: pointer.y,
+              }
               : null,
           );
         }
@@ -1753,12 +1764,12 @@ export default function Editor() {
                     setTempConnection((prev: any) =>
                       prev
                         ? {
-                            ...prev,
-                            waypoints: [
-                              ...prev.waypoints,
-                              { x: pointer.x, y: pointer.y },
-                            ],
-                          }
+                          ...prev,
+                          waypoints: [
+                            ...prev.waypoints,
+                            { x: pointer.x, y: pointer.y },
+                          ],
+                        }
                         : prev,
                     );
                   }

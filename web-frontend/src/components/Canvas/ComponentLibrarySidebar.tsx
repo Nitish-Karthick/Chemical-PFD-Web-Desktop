@@ -23,7 +23,7 @@ export const ComponentLibrarySidebar = ({
   const [activeCategory, setActiveCategory] = useState(selectedCategory);
 
   // Get all categories
-  const categories = Object.keys(components);
+  const categories = Object.keys(components).sort();
 
   // Filter logic
   const filteredComponents = Object.keys(components).reduce(
