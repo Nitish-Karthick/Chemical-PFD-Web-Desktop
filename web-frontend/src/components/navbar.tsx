@@ -11,6 +11,7 @@ import {
 } from "@heroui/react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { logoutUser } from "../api/auth";
 import { ThemeSwitch } from "./theme-switch";
 export const CNavbar = () => {
   const navigate = useNavigate();
@@ -49,8 +50,8 @@ export const CNavbar = () => {
               color={location.pathname === "/dashboard" ? "primary" : "foreground"}
               href="/dashboard"
               className={`px-4 py-2 rounded-lg transition-all ${location.pathname === "/dashboard"
-                  ? "bg-blue-100 dark:bg-blue-900/30 font-semibold"
-                  : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                ? "bg-blue-100 dark:bg-blue-900/30 font-semibold"
+                : "hover:bg-gray-100 dark:hover:bg-gray-800"
                 }`}
             >
               Dashboard
@@ -61,8 +62,8 @@ export const CNavbar = () => {
               color={location.pathname === "/components" ? "primary" : "foreground"}
               href="/components"
               className={`px-4 py-2 rounded-lg transition-all ${location.pathname === "/components"
-                  ? "bg-blue-100 dark:bg-blue-900/30 font-semibold"
-                  : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                ? "bg-blue-100 dark:bg-blue-900/30 font-semibold"
+                : "hover:bg-gray-100 dark:hover:bg-gray-800"
                 }`}
             >
               Components DB
@@ -128,7 +129,10 @@ export const CNavbar = () => {
                     color="danger"
                     size="sm"
                     variant="flat"
-                    onPress={() => navigate("/login")}
+                    onPress={() => {
+                      logoutUser();
+                      navigate("/login");
+                    }}
                   >
                     Log Out
                   </Button>

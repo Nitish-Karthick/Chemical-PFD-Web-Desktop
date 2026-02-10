@@ -14,7 +14,8 @@ import Components from "@/pages/Components";
 import { ComponentProvider } from "@/context/ComponentContext";
 
 const useAuth = () => {
-  const user = { loggedIn: true }; // Toggle this to false to test login
+  const token = localStorage.getItem("access_token");
+  const user = { loggedIn: !!token };
 
   return user.loggedIn;
 };

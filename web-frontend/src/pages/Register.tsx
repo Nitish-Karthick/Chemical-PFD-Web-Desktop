@@ -38,9 +38,10 @@ export default function Register() {
       await registerUser(formData.username, formData.email, formData.password);
       alert("Registration successful! Please login.");
       navigate("/login");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error", error);
-      alert("Registration failed. Please try again.");
+      const message = error.response?.data?.error || error.response?.data?.message || "Registration failed. Please try again.";
+      alert(`Registration failed: ${message}`);
     } finally {
       setIsLoading(false);
     }

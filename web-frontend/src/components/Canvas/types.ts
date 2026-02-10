@@ -34,6 +34,8 @@ export interface CanvasItem extends ComponentItem {
   addedAt: number; // timestamp
   label?: string; // e.g. PRV01A/B or Insulation01
   objectKey?: string; // for counting
+  naturalWidth?: number;
+  naturalHeight?: number;
 }
 
 export interface Connection {
@@ -99,7 +101,7 @@ export interface CanvasPropertiesSidebarProps {
 }
 
 // Export image types 
- 
+
 export interface ExportPreset {
   id: string;
   name: string;
@@ -107,7 +109,7 @@ export interface ExportPreset {
   options: Partial<ExportOptions>;
 }
 
- 
+
 export type ExportFormat = 'png' | 'jpg' | 'pdf' | 'export';
 export type ExportQuality = 'low' | 'medium' | 'high';
 export interface ExportOptions {
@@ -207,7 +209,7 @@ export interface DiagramExportData {
   version: string;
   exportedAt: string;
   editorVersion: string;
-  
+
   // Canvas state (what's needed to restore everything)
   canvasState: {
     items: CanvasItem[];
@@ -215,7 +217,7 @@ export interface DiagramExportData {
     counts: Record<string, number>;
     sequenceCounter: number;
   };
-  
+
   // Viewport state (so we can restore zoom/position)
   viewport: {
     scale: number;
@@ -224,7 +226,7 @@ export interface DiagramExportData {
     showGrid: boolean;
     snapToGrid: boolean;
   };
-  
+
   // Project metadata
   project: {
     id: string;
@@ -232,7 +234,7 @@ export interface DiagramExportData {
     createdAt: string;
     lastModified: string;
   };
-  
+
   // Export settings used
   exportSettings?: Partial<ExportOptions>;
 }
@@ -275,4 +277,3 @@ export interface BackendConnection {
   waypoints: Array<{ x: number; y: number }>;
 }
 
- 

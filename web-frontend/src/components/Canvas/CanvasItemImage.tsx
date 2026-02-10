@@ -10,6 +10,7 @@ import useImage from "use-image";
 import Konva from "konva";
 
 import { CanvasItemImageProps } from "./types";
+import { calculateAspectFit } from "../../utils/layout";
 
 const LABEL_OFFSET = 4;
 
@@ -78,6 +79,25 @@ export const CanvasItemImage = ({
   const labelX = item.x;
   const labelY = item.y + item.height + LABEL_OFFSET;
 
+  // Calculate aspect-fit dimensions using shared helper
+  const { x: renderX, y: renderY, width: renderWidth, height: renderHeight } = calculateAspectFit(
+    item.width,
+    item.height,
+    image?.naturalWidth || item.naturalWidth,
+    image?.naturalHeight || item.naturalHeight
+  );
+
+  // Sync natural dimensions to item state for routing
+  useEffect(() => {
+    if (image && (image.naturalWidth !== item.naturalWidth || image.naturalHeight !== item.naturalHeight)) {
+      onChange({
+        ...item,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+      });
+    }
+  }, [image, item.naturalWidth, item.naturalHeight, onChange, item]);
+
   return (
     <>
       {/* ================= IMAGE (Selectable / Transformable) ================= */}
@@ -94,51 +114,15 @@ export const CanvasItemImage = ({
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
       >
-        {(() => {
-          // Calculate aspect-fit dimensions
-          if (!image) {
-            // Fallback if image not loaded yet
-            return <KonvaImage image={undefined} width={item.width} height={item.height} />;
-          }
-
-          const imgWidth = image.naturalWidth || item.width;
-          const imgHeight = image.naturalHeight || item.height;
-
-          if (imgWidth === 0 || imgHeight === 0) return null;
-
-          const aspectRatio = imgWidth / imgHeight;
-          const containerRatio = item.width / item.height;
-
-          let renderWidth = item.width;
-          let renderHeight = item.height;
-          let renderX = 0;
-          let renderY = 0;
-
-          if (containerRatio > aspectRatio) {
-            // Container is wider than image -> fit height
-            renderHeight = item.height;
-            renderWidth = renderHeight * aspectRatio;
-            renderX = (item.width - renderWidth) / 2;
-          } else {
-            // Container is taller/narrower -> fit width
-            renderWidth = item.width;
-            renderHeight = renderWidth / aspectRatio;
-            renderY = (item.height - renderHeight) / 2;
-          }
-
-          return (
-            <KonvaImage
-              height={renderHeight}
-              image={image}
-              width={renderWidth}
-              x={renderX}
-              y={renderY}
-              onClick={(e) => onSelect(e as any)}
-              onTap={(e) => onSelect(e as any)}
-            />
-          );
-        })()}
-
+        <KonvaImage
+          height={renderHeight}
+          image={image || undefined}
+          width={renderWidth}
+          x={renderX}
+          y={renderY}
+          onClick={(e) => onSelect(e as any)}
+          onTap={(e) => onSelect(e as any)}
+        />
       </Group>
 
       {/* ================= LABEL (Visual Only, Behind Everything) ================= */}
@@ -182,8 +166,9 @@ export const CanvasItemImage = ({
       {/* ================= GRIPS (Always On Top) ================= */}
       {(isSelected || isDrawingConnection) &&
         item.grips?.map((grip, index) => {
-          const gripX = item.x + (grip.x / 100) * item.width;
-          const gripY = item.y + ((100 - grip.y) / 100) * item.height;
+          // Grips are positioned relative to the RENDERED image, not the container box
+          const gripX = (item.x + renderX) + (grip.x / 100) * renderWidth;
+          const gripY = (item.y + renderY) + ((100 - grip.y) / 100) * renderHeight;
 
           const isHovered =
             hoveredGrip?.itemId === item.id && hoveredGrip?.gripIndex === index;

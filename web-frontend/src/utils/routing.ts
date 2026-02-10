@@ -15,11 +15,24 @@ interface Vector {
 
 // --- Helper Functions ---
 
+import { calculateAspectFit } from "./layout";
+
 const getGripPosition = (item: CanvasItem, gripIndex: number): Point | null => {
   if (!item.grips || gripIndex >= item.grips.length) return null;
+
+  // Calculate the actual rendered box of the image
+  const { x: renderX, y: renderY, width: renderWidth, height: renderHeight } = calculateAspectFit(
+    item.width,
+    item.height,
+    item.naturalWidth,
+    item.naturalHeight
+  );
+
   const grip = item.grips[gripIndex];
-  const x = item.x + (grip.x / 100) * item.width;
-  const y = item.y + ((100 - grip.y) / 100) * item.height;
+
+  // Grip position is relative to the RENDERED image, plus the item's absolute position
+  const x = (item.x + renderX) + (grip.x / 100) * renderWidth;
+  const y = (item.y + renderY) + ((100 - grip.y) / 100) * renderHeight;
 
   return { x, y };
 };
@@ -109,9 +122,85 @@ export const calculateManualPathsWithBridges = (
 
     if (!start || !end) continue;
 
-    const points: Point[] = [start];
+    // --- Standoff Logic ---
+    const STANDOFF_DIST = 20;
 
-    if (conn.waypoints) points.push(...conn.waypoints);
+    const sourceGrip = source.grips?.[conn.sourceGripIndex];
+    const targetGrip = target.grips?.[conn.targetGripIndex];
+
+    const getClosestSide = (g: any): "top" | "bottom" | "left" | "right" => {
+      if (!g) return "bottom"; // Fallback
+
+      const distLeft = g.x;
+      const distRight = 100 - g.x;
+      const distTop = 100 - g.y; // y=100 is top (0 distance)
+      const distBottom = g.y;    // y=0 is bottom (0 distance)
+
+      const min = Math.min(distLeft, distRight, distTop, distBottom);
+
+      if (min === distLeft) return "left";
+      if (min === distRight) return "right";
+      if (min === distTop) return "top";
+      return "bottom";
+    };
+
+    const getStandoff = (p: Point, grip: any) => {
+      const side = getClosestSide(grip);
+      if (!side) return p;
+
+      if (side === "left") return { x: p.x - STANDOFF_DIST, y: p.y };
+      if (side === "right") return { x: p.x + STANDOFF_DIST, y: p.y };
+      if (side === "top") return { x: p.x, y: p.y - STANDOFF_DIST }; // Top is UP (negative Y in canvas)
+      if (side === "bottom") return { x: p.x, y: p.y + STANDOFF_DIST }; // Bottom is DOWN (positive Y in canvas)
+      return p;
+    };
+
+    const startStandoff = getStandoff(start, sourceGrip);
+    const endStandoff = getStandoff(end, targetGrip);
+
+    const points: Point[] = [start, startStandoff];
+
+    // --- Waypoint Filtering ---
+    // Remove waypoints that are likely "inside" the source or target due to import mismatches
+    // OR are too close to the start/end resulting in sharp turn-backs
+    const isInside = (p: Point, item: CanvasItem) => {
+      const { x: rX, y: rY, width: rW, height: rH } = calculateAspectFit(
+        item.width,
+        item.height,
+        item.naturalWidth,
+        item.naturalHeight
+      );
+      const absX = item.x + rX;
+      const absY = item.y + rY;
+      // buffer to be generous
+      const buffer = 10;
+      return (
+        p.x > absX + buffer &&
+        p.x < absX + rW - buffer &&
+        p.y > absY + buffer &&
+        p.y < absY + rH - buffer
+      );
+    };
+
+    if (conn.waypoints) {
+      const validWaypoints = conn.waypoints.filter(wp => {
+        // Check if inside
+        if (isInside(wp, source) || isInside(wp, target)) return false;
+
+        // Check if too close to grips (prevents "doubling back" from standoff)
+        const distToStart = len(sub(wp, start));
+        const distToEnd = len(sub(wp, end));
+
+        // If waypoint is closer than our standoff, skip it to let the standoff line handle the exit
+        if (distToStart < STANDOFF_DIST * 2.0) return false;
+        if (distToEnd < STANDOFF_DIST * 2.0) return false;
+
+        return true;
+      });
+      points.push(...validWaypoints);
+    }
+
+    points.push(endStandoff);
     points.push(end);
 
     const segments: LineSegment[] = [];
