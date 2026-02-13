@@ -94,7 +94,7 @@ export default function Editor() {
   const [snapToGrid, setSnapToGrid] = useState(true);
 
   const [gridSize, setGridSize] = useState(20);
-  const [componentSize, setComponentSize] = useState(1500); // Component drop size
+  const [componentSize, setComponentSize] = useState(6000); // Component drop size
   const prevComponentSizeRef = useRef(1500); // Track previous size for scaling
   // In your state section, add:
   const [isImporting, setIsImporting] = useState(false);
@@ -1957,8 +1957,8 @@ export default function Editor() {
                           "bg-gradient-to-r from-blue-200 to-blue-400 dark:from-blue-800 dark:to-blue-600",
                         thumb: "bg-blue-600 dark:bg-blue-500",
                       }}
-                      maxValue={3000}
-                      minValue={1000}
+                       maxValue={8000}
+                        minValue={2000}
                       size="sm"
                       step={100}
                       value={componentSize}
