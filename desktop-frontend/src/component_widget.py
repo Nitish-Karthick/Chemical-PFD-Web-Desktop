@@ -52,6 +52,12 @@ class ComponentWidget(QWidget):
         w = max(1, self.width() - pad * 2)
         h = max(1, self.height() - pad * 2)
         
+        # If label is present, we added extra height to the widget in update_visuals.
+        # We must subtract that here so the SVG is rendered only in the "component" part,
+        # ensuring aspect ratio and grip positions match the logical_rect.
+        if self.config.get('default_label'):
+             h = max(1, h - self.LABEL_H)
+
         return QRectF(pad, pad, w, h)
     
     def calculate_svg_rect(self, content_rect):
@@ -191,18 +197,12 @@ class ComponentWidget(QWidget):
             painter.setBrush(Qt.NoBrush)
             painter.drawRoundedRect(svg_rect.adjusted(1, 1, -1, -1), 6, 6)
 
-        # Label
+        # Label (drawn below SVG, within the extra LABEL_H space added by update_visuals)
         if self.config.get('default_label'):
             label_color = Qt.white if app_state.current_theme == "dark" else Qt.black
             painter.setPen(QPen(label_color))
-            # Draw label relative to the bottom of the content rect
-            # Use fixed 20px height for label area
-            text_rect = QRectF(0, content_rect.bottom() + 2, self.width(), 20)
-            
-            # Note: With 30px height, this label is outside the widget content area.
-            # QWidget paintEvent clips to self.rect(), so this might be invisible unless 
-            # we draw on the parent or resize the widget.
-            # But per requirements: "verify label positioning is relative to bottom".
+            # Draw label in the reserved bottom strip
+            text_rect = QRectF(0, self.height() - self.LABEL_H, self.width(), self.LABEL_H)
             painter.drawText(text_rect, Qt.AlignCenter, self.config['default_label'])
 
         # Draw Ports using SVG coordinate mapping
@@ -450,17 +450,19 @@ class ComponentWidget(QWidget):
 
     # ---------------------- SERIALIZATION ----------------------
     # ---------------------- ZOOM LOGIC ----------------------
-    # Port padding (pixels) — extra space around SVG for port circles at edges
-    PORT_PAD = 6
+    PORT_PAD = 6   # extra space around SVG for port circles at edges
+    LABEL_H = 20   # extra height for component label below SVG
 
     def update_visuals(self, zoom_level):
         """Update visual geometry based on logical rect and zoom level."""
-        # Calculate visual rect with padding for port circles at edges
         pad = int(self.PORT_PAD * zoom_level)
         v_x = int(self.logical_rect.x() * zoom_level) - pad
         v_y = int(self.logical_rect.y() * zoom_level) - pad
         v_w = int(self.logical_rect.width() * zoom_level) + pad * 2
         v_h = int(self.logical_rect.height() * zoom_level) + pad * 2
+        # Add space for label text below the SVG
+        if self.config.get('default_label'):
+            v_h += self.LABEL_H
         
         # Apply
         self.setFixedSize(v_w, v_h)

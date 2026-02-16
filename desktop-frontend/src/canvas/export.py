@@ -170,6 +170,9 @@ def load_canvas_from_project(canvas, project_data):
             if isinstance(c, (ComponentWidget, QLabel)):
                 c.deleteLater()
         
+        # Reset label counters to prevent sequence collisions
+        canvas.label_data = resources.load_label_data(canvas.base_dir)
+        
         # Load Components
         id_map = {}
         
@@ -285,6 +288,25 @@ def load_canvas_from_project(canvas, project_data):
             
             canvas.components.append(comp)
             id_map[d.get("id")] = comp
+
+            # --- UPDATE LABEL COUNTERS ---
+            # Ensure future drops continue the sequence correctly
+            key_text = comp.config.get("object") or comp.config.get("name")
+            if key_text:
+                key = resources.clean_string(key_text)
+                legend = comp.config.get("legend", "")
+                suffix = comp.config.get("suffix", "")
+                
+                # Auto-initialize if missing (Sync with widget.py logic)
+                if key not in canvas.label_data and legend:
+                    canvas.label_data[key] = {
+                        "legend": legend,
+                        "suffix": suffix,
+                        "count": 0
+                    }
+                
+                if key in canvas.label_data:
+                    canvas.label_data[key]["count"] += 1
         
         # Load Connections
         for d in conns_data:
